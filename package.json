@@ -1,0 +1,22 @@
+{
+  "name": "reverse-shell-listener",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemanjan00/reverse-shell-listener.git"
+  },
+  "author": "Nemanja Nedeljković <nemanjan00@gmail.com> (https://nemanja.top/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nemanjan00/reverse-shell-listener/issues"
+  },
+  "homepage": "https://github.com/nemanjan00/reverse-shell-listener#readme",
+  "devDependencies": {
+    "angular-terminal": "^1.0.0"
+  }
+}
