@@ -108,7 +108,7 @@ var server = net.createServer(function(socket) {
 		try{
 			ws.send(JSON.stringify({
 				message: "newServer",
-				id: id++,
+				id: id,
 				ip: socket.address().address
 			}));
 
@@ -117,6 +117,8 @@ var server = net.createServer(function(socket) {
 			return false;
 		}
 	});
+
+	id++;
 });
 
 server.listen(1337, '0.0.0.0');
