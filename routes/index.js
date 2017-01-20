@@ -12,7 +12,8 @@ module.exports = function(app) {
 			ws.send(JSON.stringify({
 				message: "newServer",
 				id: server.id,
-				ip: server.ip
+				ip: server.ip,
+				dead: server.dead
 			}));
 		});
 
@@ -46,13 +47,41 @@ module.exports = function(app) {
 		ws.on("message", function(message){
 			message = JSON.parse(message);
 
-			var server = app.get("servers")[req.params.id];
+			var servers = app.get("servers");
 
 			try {
-				server.socket.write(message.command);
-			} catch(e) {
-				console.log(e);
-			}
+				servers[req.params.id].socket.write(message.command);
+			} catch(e) {}
+
+			app.set("servers", servers);
+
+
+			var messagesByServer = app.get("messagesByServer");
+
+			messagesByServer[req.params.id].push(">"+message.command);
+
+			app.set("messagesByServer", messagesByServer)
+
+			var socketsByServer = app.get("socketsByServer");
+
+			socketsByServer[req.params.id].filter(function(wsNew){
+				if(wsNew == ws){
+					return true;
+				}
+
+				try{
+					wsNew.send(JSON.stringify({
+						message: "data",
+						data: ">"+message.command
+					}));
+
+					return true;
+				}catch(e){
+					return false;
+				}
+			});
+
+			app.set("socketsByServer", socketsByServer);
 		});
 	});
 

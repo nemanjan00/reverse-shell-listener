@@ -73778,7 +73778,7 @@
 /***/ function(module, exports) {
 
 	module.exports = function(app){
-		app.controller("MainController", function($scope, $timeout, $rootScope, $websocket){
+		app.controller("MainController", function($scope, $timeout, $rootScope, $websocket, $filter){
 			$scope.currentShell = {
 				ip: "Not connected"
 			};
@@ -73789,8 +73789,14 @@
 
 			$scope.shells = {};
 
-			$scope.haveShells = function(){
-				return Object.keys($scope.shells).length != 0;
+			$scope.haveNonDeadShells = function(){
+				console.log($filter('notDead')($scope.shells));
+
+				return Object.keys($filter('notDead')($scope.shells)).length != 0;
+			}
+
+			$scope.haveDeadShells = function(){
+				return Object.keys($filter('dead')($scope.shells)).length != 0;
 			}
 
 			$scope.selectShell = function(id){
@@ -73817,7 +73823,8 @@
 
 				if(message.message == "newServer"){
 					$scope.shells[message.id] = {
-						ip: message.ip
+						ip: message.ip,
+						dead: message.dead
 					};
 
 					var newConnection = $websocket(window.location.href.replace("http", "ws")+"server/"+message.id);
@@ -73841,6 +73848,34 @@
 			$timeout(function(){
 				window.resize();
 			}, 0);
+		});
+
+		app.filter('notDead', function() {
+			return function(items) {
+				var output = {};
+
+				Object.keys(items).forEach(function(key){
+					if(items[key].dead != true){
+						output[key] = items[key];
+					}
+				});
+
+				return output;
+			};
+		});
+
+		app.filter('dead', function() {
+			return function(items) {
+				var output = {};
+
+				Object.keys(items).forEach(function(key){
+					if(items[key].dead != false){
+						output[key] = items[key];
+					}
+				});
+
+				return output;
+			};
 		});
 	}
 

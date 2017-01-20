@@ -31,6 +31,7 @@ app.set("messagesByServer", messagesByServer);
 
 var server = net.createServer(function(socket) {
 	var currentId = id+"";
+	var currentIP = socket.address().address+"";
 
 	socket.on("data", function(data){
 		if(messagesByServer[currentId] == undefined){
@@ -92,12 +93,37 @@ var server = net.createServer(function(socket) {
 		});
 
 		app.set("socketsByServer", socketsByServer);
+
+		var servers = app.get("servers");
+
+		servers[currentId].dead = true;
+
+
+		var sockets = app.get("sockets");
+
+		sockets.filter(function(ws){
+			try{
+				ws.send(JSON.stringify({
+					message: "newServer",
+					id: currentId,
+					ip: currentIP,
+					dead: true
+				}));
+
+				return true;
+			}catch(e){
+				return false;
+			}
+		});
+
+		app.set("sockets", sockets);
 	});
 
 	servers.push({
 		socket: socket,
 		id: id,
-		ip: socket.address().address
+		ip: socket.address().address,
+		dead: false
 	});
 
 	app.set("servers", servers);
@@ -109,7 +135,8 @@ var server = net.createServer(function(socket) {
 			ws.send(JSON.stringify({
 				message: "newServer",
 				id: id,
-				ip: socket.address().address
+				ip: socket.address().address,
+				dead: false
 			}));
 
 			return true;
@@ -117,6 +144,8 @@ var server = net.createServer(function(socket) {
 			return false;
 		}
 	});
+
+	app.set("sockets", sockets);
 
 	id++;
 });
