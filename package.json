@@ -28,7 +28,7 @@
     "font-awesome": "^4.7.0",
     "jquery": "^3.1.1",
     "jquery.mousewheel": "^3.1.9",
-    "jquery.terminal": "^0.11.23",
+    "jquery.terminal": "^2.8.0",
     "style-loader": "^0.13.1",
     "webpack": "^1.14.0",
     "webpack-livereload-plugin": "^0.10.0"
