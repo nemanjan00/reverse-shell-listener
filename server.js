@@ -70,7 +70,11 @@ app.post("/login", express.urlencoded({ extended: false }), (req, res) => {
   const { username, password } = req.body || {};
   if (checkCredentials(username, password)) {
     const { token } = issueToken(username);
-    res.setHeader("Set-Cookie", sessionCookie(token, isSecure(req)));
+    // Only mark the session cookie Secure when the connection to Node is actually
+    // TLS. Behind a reverse proxy that terminates TLS, the cookie will still be
+    // protected by the proxy's HTTPS and won't be dropped by browsers that refuse
+    // to send Secure cookies over plain HTTP.
+    res.setHeader("Set-Cookie", sessionCookie(token, req.secure));
     return res.redirect("/");
   }
   res.redirect("/login?error=1");
