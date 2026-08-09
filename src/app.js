@@ -1269,7 +1269,9 @@ const Toolbar = () =>
     el(
       "div",
       { class: "title" },
-      () => (current() ? `${current().remote}` : "No session selected"),
+      el("span", { class: "remote-title" }, () =>
+        current() ? `${current().remote}` : "No session selected"
+      ),
       when(
         () => current(),
         () =>

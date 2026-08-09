@@ -302,6 +302,7 @@ body {
   padding: 12px 18px;
   border-bottom: 1px solid var(--qrp-border);
   background: var(--d-bg-darker);
+  overflow: hidden;
 }
 
 .toolbar .title {
@@ -309,6 +310,20 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.toolbar .remote-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.toolbar .title .badge {
+  flex-shrink: 0;
 }
 
 .toolbar .spacer {
@@ -430,6 +445,7 @@ body {
   gap: 4px;
   grid-template-rows: repeat(3, 2px);
   padding: 6px 5px;
+  flex: none;
 }
 
 .hamburger span {
