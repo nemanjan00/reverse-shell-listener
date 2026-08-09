@@ -625,6 +625,11 @@ func (c *Client) runAutoExec(ae *muxpb.AutoExec) {
 	if shell == "powershell" {
 		cmd = exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", tmp.Name())
 	}
+	exe, _ := os.Executable()
+	cmd.Env = append(os.Environ(),
+		"RSL_CLIENT_PID="+strconv.Itoa(os.Getpid()),
+		"RSL_CLIENT_EXE="+exe,
+	)
 	out, err := cmd.CombinedOutput()
 	if len(out) > 0 {
 		log.Printf("[autoexec] output:\n%s", string(out))

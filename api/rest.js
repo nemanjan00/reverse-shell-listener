@@ -116,6 +116,15 @@ export function restRouter() {
     res.json({ ok: true, channelId, host: h.meta() });
   });
 
+  // Ask a mux host to kill its own process and remove its binary.
+  router.post("/hosts/:id/self-destruct", (req, res) => {
+    const h = hosts.get(req.params.id);
+    if (!h || !h.alive) return res.status(404).json({ error: "no such host" });
+    const ok = h.selfDestruct();
+    if (!ok) return res.status(503).json({ error: "could not self-destruct" });
+    res.json({ ok: true, host: h.meta() });
+  });
+
   // --- Build (cross-compile Go client from the dashboard) -------------------
   router.use("/build", buildRouter());
 

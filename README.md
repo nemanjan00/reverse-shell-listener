@@ -20,6 +20,7 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
 | 🖥️ **Dashboard** | Live sessions, full PTY terminal with resize + mouse support |
 | 📁 **File tools** | Per-host file transfer, native file-system browser, streaming upload/download |
 | 🌐 **HTTP CONNECT proxy** | Per-mux-host proxy with Basic auth (great for pivoting) |
+| 💣 **Self-destruct** | Remote-kill mux implant and delete its binary from the dashboard |
 | ⌨️ **BadUSB generator** | DuckyScript payload builder with device selector and macOS VID/PID spoofing |
 | 📋 **Payload library** | Copyable one-liners for TCP, TLS, webshell, mux, and download-&-run |
 | ⚡ **Command palette** | `Ctrl+K` to jump between hosts and sessions |
@@ -264,6 +265,7 @@ Windows PTY is not included in this build.
 | `/api/hosts` | GET | List mux hosts |
 | `/api/hosts/:id` | GET | Host metadata |
 | `/api/hosts/:id/shells` | POST | Ask host to open a new PTY shell |
+| `/api/hosts/:id/self-destruct` | POST | Kill implant process and remove binary |
 | `/api/config` | GET | Runtime config: proxy URL, tokens |
 | `/api/log` | GET | In-memory event-log snapshot (`?since=ts`) |
 

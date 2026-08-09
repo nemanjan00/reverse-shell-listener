@@ -173,4 +173,23 @@ describe("integration", () => {
     });
     assert.equal(res.status, 401);
   });
+
+  it("rejects self-destruct for non-existent host", async () => {
+    const res = await fetch(`${baseUrl}/api/hosts/h999/self-destruct`, {
+      method: "POST",
+      headers: {
+        cookie: `rsl_session=${encodeURIComponent(session)}`,
+        "x-csrf-token": csrfToken,
+      },
+    });
+    assert.equal(res.status, 404);
+  });
+
+  it("allows self-destruct via API token without CSRF", async () => {
+    const res = await fetch(`${baseUrl}/api/hosts/h999/self-destruct`, {
+      method: "POST",
+      headers: { "x-api-token": "apitok" },
+    });
+    assert.equal(res.status, 404);
+  });
 });

@@ -795,6 +795,15 @@ async function openHostShell(hostId) {
   await apiPost(`/api/hosts/${hostId}/shells`, { cols, rows });
 }
 
+async function selfDestructHost(hostId) {
+  const host = app.hosts.find((h) => h.id === hostId);
+  if (!host || !host.alive) return;
+  if (!confirm(`Self-destruct ${host.label || host.id}? This kills the implant and deletes its binary.`)) return;
+  app.lastUserActionAt = Date.now();
+  const res = await apiPost(`/api/hosts/${hostId}/self-destruct`);
+  if (res && res.ok) closeHostDetails();
+}
+
 function openHostDetails(hostId) {
   app.hostDetailsId = hostId;
   // Warm up the file-system browser socket and load the current directory.
@@ -1571,6 +1580,15 @@ const HostDetails = () =>
                 },
               },
               "+ new shell"
+            ),
+            el(
+              "button",
+              {
+                class: "btn danger",
+                disabled: () => !h.alive,
+                onclick: () => selfDestructHost(h.id),
+              },
+              "Self-destruct"
             )
           ),
           when(
