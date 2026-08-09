@@ -101,14 +101,30 @@ body {
 
 /* --- Sidebar ------------------------------------------------------------- */
 .sidebar {
-  flex: 0 0 288px;
-  width: 288px;
+  flex: 0 0 var(--sidebar-width, 288px);
+  width: var(--sidebar-width, 288px);
   background: var(--d-bg-darker);
   border-right: 1px solid var(--qrp-border);
   display: flex;
   flex-direction: column;
   min-height: 0;
   height: 100%;
+  position: relative;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 10;
+}
+.sidebar-resizer:hover,
+.sidebar-resizer.dragging {
+  background: var(--d-purple);
+  opacity: 0.35;
 }
 
 .brand {
@@ -470,6 +486,11 @@ body {
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     border-right: 1px solid var(--qrp-border);
+  }
+
+  .sidebar-resizer,
+  .log-resizer {
+    display: none;
   }
 
   .sidebar.open {
@@ -847,11 +868,28 @@ body {
 /* --- Event log panel ------------------------------------------------------- */
 .log-panel {
   flex: none;
-  height: 220px;
+  height: var(--log-height, 220px);
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--qrp-border);
   background: var(--d-bg-darker);
+  position: relative;
+}
+
+.log-resizer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 10;
+  transform: translateY(-50%);
+}
+.log-resizer:hover,
+.log-resizer.dragging {
+  background: var(--d-purple);
+  opacity: 0.35;
 }
 
 .log-panel .list-group-label {
@@ -917,6 +955,87 @@ body {
   flex: 1;
   min-width: 0;
   word-break: break-word;
+}
+
+/* --- Help overlay ---------------------------------------------------------- */
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 16px;
+  font-size: 13px;
+  align-items: center;
+}
+
+.shortcut-key {
+  font-family: var(--qrp-font);
+  background: var(--d-bg);
+  border: 1px solid var(--qrp-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--d-fg);
+  font-size: 12px;
+  white-space: nowrap;
+  justify-self: start;
+}
+
+.shortcut-desc {
+  color: var(--d-comment);
+}
+
+/* --- Host file transfer ---------------------------------------------------- */
+.file-transfer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.file-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.file-actions .field {
+  margin: 0;
+}
+
+.file-transfers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-transfer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--d-bg);
+  border: 1px solid var(--qrp-border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.file-transfer-row.done {
+  border-color: var(--d-green);
+}
+
+.file-transfer-row.error {
+  border-color: var(--d-red);
+}
+
+.file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-status {
+  color: var(--d-comment);
+  white-space: nowrap;
 }
 
 /* --- Payload examples modal ----------------------------------------------- */

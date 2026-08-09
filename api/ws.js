@@ -3,6 +3,43 @@ import { hosts } from "../core/hosts.js";
 import { log } from "../core/log.js";
 import { authorized } from "./auth.js";
 
+
+// Convert a JSON file frame from the dashboard into a protobuf Frame object.
+// Returns null for unrecognized or incomplete messages.
+function jsonToFileFrame(msg) {
+  if (!msg || !msg.type || typeof msg.transfer_id !== "number") return null;
+  switch (msg.type) {
+    case "file_request":
+      return {
+        fileRequest: { transferId: msg.transfer_id, path: String(msg.path || "") },
+      };
+    case "file_start":
+      return {
+        fileStart: {
+          transferId: msg.transfer_id,
+          path: String(msg.path || ""),
+          size: msg.size || 0,
+        },
+      };
+    case "file_chunk":
+      return {
+        fileChunk: {
+          transferId: msg.transfer_id,
+          data: Buffer.from(msg.data || "", "base64"),
+        },
+      };
+    case "file_done":
+      return {
+        fileDone: {
+          transferId: msg.transfer_id,
+          error: String(msg.error || ""),
+        },
+      };
+    default:
+      return null;
+  }
+}
+
 // WebSocket endpoints, registered on the shared express-ws app:
 //   /api/ws/sessions       session-list event stream (JSON)
 //   /api/ws/session/:id    one session's terminal channel (binary bytes +
@@ -125,6 +162,40 @@ export function registerWs(app) {
       session.off("exit", onExit);
       session.off("meta", onMeta);
     });
+  });
+
+  // --- file transfer relay -------------------------------------------------
+  // Dashboard opens this host-scoped WebSocket and exchanges JSON-encoded
+  // file frames. The server translates them to/from protobuf and relays them
+  // over the host's mux WebSocket.
+  app.ws("/api/ws/host/:id/file", (ws, req) => {
+    if (!authorized(req)) {
+      ws.close(1008, "unauthorized");
+      return;
+    }
+    const host = hosts.get(req.params.id);
+    if (!host || !host.alive) {
+      ws.close(1008, "no such host");
+      return;
+    }
+
+    ws.binaryType = "arraybuffer";
+    host.addFileSocket(ws);
+
+    ws.on("message", (data, isBinary) => {
+      let msg;
+      try {
+        const text = typeof data === "string" ? data : data.toString();
+        msg = JSON.parse(text);
+      } catch {
+        return;
+      }
+      const frame = jsonToFileFrame(msg);
+      if (!frame) return;
+      host.send(frame);
+    });
+
+    ws.on("close", () => host._fileSockets.delete(ws));
   });
 
   // --- event log stream -----------------------------------------------------

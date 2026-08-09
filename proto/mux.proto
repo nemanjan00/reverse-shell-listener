@@ -15,8 +15,9 @@ option go_package = "github.com/nemanjan00/reverse-shell-listener/client/muxpb";
 // with OpenOk/OpenError, then raw PTY bytes flow both ways as Data frames.
 //
 // Directions:
-//   client -> server : Hello, OpenOk, OpenError, Data, Close, Pong, Ping, AutoExecResult
-//   server -> client : OpenRequest, Data, Resize, Close, Ping, Pong, AutoExec
+//   client -> server : Hello, OpenOk, OpenError, Data, Close, Pong, Ping, AutoExecResult, FileStart, FileChunk, FileDone
+//   server -> client : OpenRequest, Data, Resize, Close, Ping, Pong, AutoExec, FileRequest, FileStart, FileChunk, FileDone
+//   File* frames are relayed between the dashboard and the client via the server.
 
 message Frame {
   oneof kind {
@@ -30,6 +31,10 @@ message Frame {
     Ping        ping         = 8;  // both: keepalive
     Pong        pong         = 9;  // both: keepalive reply
     AutoExec    auto_exec    = 10; // server -> client: run this script locally
+    FileRequest file_request = 11; // downloader -> uploader: request a file
+    FileStart   file_start   = 12; // uploader  -> downloader: begin transfer
+    FileChunk   file_chunk   = 13; // uploader  -> downloader: data chunk
+    FileDone    file_done    = 14; // either    -> either:    end or error
   }
 }
 
@@ -97,4 +102,30 @@ message AutoExec {
   string os      = 1;  // the os the server matched on (informational)
   string shell   = 2;  // "sh" or "powershell" — how to invoke the script
   bytes  script  = 3;  // the script body to execute
+}
+
+// Downloader asks the uploader to send a file.
+message FileRequest {
+  uint32 transfer_id = 1;  // chosen by the downloader, unique per host connection
+  string path        = 2;  // path of the file on the uploader's side
+}
+
+// Uploader begins a file transfer in response to FileRequest (download) or as
+// the first frame of an upload.
+message FileStart {
+  uint32 transfer_id = 1;
+  string path        = 2;
+  uint64 size        = 3;  // total bytes, 0 if unknown
+}
+
+// Raw file data chunk.
+message FileChunk {
+  uint32 transfer_id = 1;
+  bytes  data        = 2;
+}
+
+// Signals the end of a transfer. error is empty on success.
+message FileDone {
+  uint32 transfer_id = 1;
+  string error       = 2;
 }

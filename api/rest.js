@@ -25,6 +25,16 @@ export function restRouter() {
     res.json(s.meta());
   });
 
+  // Download the session's in-memory scrollback as raw bytes.
+  router.get("/sessions/:id/scrollback", (req, res) => {
+    const s = registry.get(req.params.id);
+    if (!s) return res.status(404).json({ error: "no such session" });
+    const buf = s.scrollback();
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="scrollback-${s.id}.bin"`);
+    res.send(buf);
+  });
+
   // Kill the connection but keep the session (and scrollback) in the offline
   // list.
   router.post("/sessions/:id/kill", (req, res) => {

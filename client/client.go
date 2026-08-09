@@ -5,10 +5,12 @@ package client
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -72,12 +74,13 @@ func (c *Config) token() string {
 // Client maintains one persistent WebSocket to the listener and multiplexes
 // several PTY-backed shell channels over it.
 type Client struct {
-	cfg      Config
-	dialer   websocket.Dialer
-	conn     *websocket.Conn
-	mu       sync.Mutex
-	channels map[uint32]*channel
-	stop     chan struct{}
+	cfg       Config
+	dialer    websocket.Dialer
+	conn      *websocket.Conn
+	mu        sync.Mutex
+	channels  map[uint32]*channel
+	files     map[uint32]*os.File // active file transfers keyed by transfer_id
+	stop      chan struct{}
 }
 
 // channel is one server-requested PTY shell.
@@ -93,6 +96,7 @@ func Run(ctx context.Context, cfg Config) error {
 	c := &Client{
 		cfg:      cfg,
 		channels: make(map[uint32]*channel),
+		files:    make(map[uint32]*os.File),
 		stop:     make(chan struct{}),
 	}
 	return c.run(ctx)
@@ -142,9 +146,16 @@ func (c *Client) close() {
 	for _, ch := range c.channels {
 		chans = append(chans, ch)
 	}
+	files := make([]*os.File, 0, len(c.files))
+	for _, f := range c.files {
+		files = append(files, f)
+	}
 	c.mu.Unlock()
 	for _, ch := range chans {
 		c.closeChannel(ch)
+	}
+	for _, f := range files {
+		f.Close()
 	}
 	if c.conn != nil {
 		c.conn.Close()
@@ -231,6 +242,190 @@ func (c *Client) handleFrame(ctx context.Context, frame *muxpb.Frame) {
 		// handled by SetPongHandler
 	case *muxpb.Frame_AutoExec:
 		go c.runAutoExec(v.AutoExec)
+	case *muxpb.Frame_FileRequest:
+		go c.sendFile(v.FileRequest)
+	case *muxpb.Frame_FileStart:
+		c.startFileReceive(v.FileStart)
+	case *muxpb.Frame_FileChunk:
+		c.receiveFileChunk(v.FileChunk)
+	case *muxpb.Frame_FileDone:
+		c.finishFileReceive(v.FileDone)
+	}
+}
+
+// --- File transfer ---------------------------------------------------------
+// Paths are rejected if they contain directory traversal, null bytes, or are
+// empty. Symlinks are not followed on open (O_NOFOLLOW on Unix) to reduce the
+// risk of the operator accidentally overwriting sensitive files.
+
+func (c *Client) validateFilePath(p string) (string, error) {
+	if p == "" {
+		return "", fmt.Errorf("empty path")
+	}
+	if strings.ContainsRune(p, '\x00') {
+		return "", fmt.Errorf("null byte in path")
+	}
+	clean := filepath.Clean(p)
+	for _, part := range strings.Split(clean, string(filepath.Separator)) {
+		if part == ".." {
+			return "", fmt.Errorf("directory traversal in path")
+		}
+	}
+	if filepath.IsAbs(clean) {
+		return clean, nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cwd, clean), nil
+}
+
+// sendFile is a download from the client's perspective: the operator requested
+// a file, so we read it and send FileStart + FileChunk(s) + FileDone.
+func (c *Client) sendFile(req *muxpb.FileRequest) {
+	path, err := c.validateFilePath(req.Path)
+	if err != nil {
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_FileDone{FileDone: &muxpb.FileDone{
+				TransferId: req.TransferId,
+				Error:      err.Error(),
+			}},
+		})
+		return
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_FileDone{FileDone: &muxpb.FileDone{
+				TransferId: req.TransferId,
+				Error:      err.Error(),
+			}},
+		})
+		return
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	var size uint64
+	if err == nil && !info.IsDir() {
+		size = uint64(info.Size())
+	}
+	if info != nil && info.IsDir() {
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_FileDone{FileDone: &muxpb.FileDone{
+				TransferId: req.TransferId,
+				Error:      "path is a directory",
+			}},
+		})
+		return
+	}
+
+	_ = c.write(&muxpb.Frame{
+		Kind: &muxpb.Frame_FileStart{FileStart: &muxpb.FileStart{
+			TransferId: req.TransferId,
+			Path:       req.Path,
+			Size:       size,
+		}},
+	})
+
+	buf := make([]byte, 16*1024)
+	for {
+		n, err := f.Read(buf)
+		if n > 0 {
+			if werr := c.write(&muxpb.Frame{
+				Kind: &muxpb.Frame_FileChunk{FileChunk: &muxpb.FileChunk{
+					TransferId: req.TransferId,
+					Data:       append([]byte(nil), buf[:n]...),
+				}},
+			}); werr != nil {
+				return
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			_ = c.write(&muxpb.Frame{
+				Kind: &muxpb.Frame_FileDone{FileDone: &muxpb.FileDone{
+					TransferId: req.TransferId,
+					Error:      err.Error(),
+				}},
+			})
+			return
+		}
+	}
+
+	_ = c.write(&muxpb.Frame{
+		Kind: &muxpb.Frame_FileDone{FileDone: &muxpb.FileDone{
+			TransferId: req.TransferId,
+		}},
+	})
+}
+
+func (c *Client) startFileReceive(fs *muxpb.FileStart) {
+	path, err := c.validateFilePath(fs.Path)
+	if err != nil {
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_FileDone{FileDone: &muxpb.FileDone{
+				TransferId: fs.TransferId,
+				Error:      err.Error(),
+			}},
+		})
+		return
+	}
+
+	flags := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+	f, err := os.OpenFile(path, flags, 0644)
+	if err != nil {
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_FileDone{FileDone: &muxpb.FileDone{
+				TransferId: fs.TransferId,
+				Error:      err.Error(),
+			}},
+		})
+		return
+	}
+
+	c.mu.Lock()
+	c.files[fs.TransferId] = f
+	c.mu.Unlock()
+}
+
+func (c *Client) receiveFileChunk(fc *muxpb.FileChunk) {
+	c.mu.Lock()
+	f := c.files[fc.TransferId]
+	c.mu.Unlock()
+	if f == nil {
+		return
+	}
+	if _, err := f.Write(fc.Data); err != nil {
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_FileDone{FileDone: &muxpb.FileDone{
+				TransferId: fc.TransferId,
+				Error:      err.Error(),
+			}},
+		})
+		c.mu.Lock()
+		delete(c.files, fc.TransferId)
+		c.mu.Unlock()
+		f.Close()
+	}
+}
+
+func (c *Client) finishFileReceive(fd *muxpb.FileDone) {
+	c.mu.Lock()
+	f := c.files[fd.TransferId]
+	delete(c.files, fd.TransferId)
+	c.mu.Unlock()
+	if f != nil {
+		f.Close()
+	}
+	if fd.Error != "" {
+		log.Printf("[file] upload %d failed: %s", fd.TransferId, fd.Error)
+	} else {
+		log.Printf("[file] upload %d complete", fd.TransferId)
 	}
 }
 
