@@ -1,149 +1,130 @@
-import http from "node:http";
+import { Duplex } from "node:stream";
+
+import proxinator from "proxinator";
 
 import config from "../config.js";
 import { hosts } from "../core/hosts.js";
 import { log } from "../core/log.js";
 
-// Minimal HTTP CONNECT proxy that tunnels TCP connections through a mux host.
-// Authentication is Basic auth: username = host id, password = PROXY_TOKEN.
-// When PROXY_TOKEN is empty, the proxy listener is disabled.
+// HTTP CONNECT proxy through a mux host, powered by proxinator.
+// Authentication: Basic auth username = host id, password = PROXY_TOKEN.
+// Disabled when PROXY_TOKEN is empty.
 
-function parseBasicAuth(header) {
-  if (!header || !header.startsWith("Basic ")) return null;
-  try {
-    const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
-    const idx = decoded.indexOf(":");
-    if (idx === -1) return null;
-    return { username: decoded.slice(0, idx), password: decoded.slice(idx + 1) };
-  } catch {
-    return null;
+class MuxSocket extends Duplex {
+  constructor(host, proxyId) {
+    super({ allowHalfOpen: true });
+    this.host = host;
+    this.proxyId = proxyId;
+    this._connected = false;
   }
-}
 
-function parseConnectTarget(url) {
-  const [hostname, portStr] = url.split(":");
-  const port = parseInt(portStr, 10);
-  if (!hostname || !portStr || Number.isNaN(port) || port <= 0 || port > 65535) {
-    return null;
+  _write(chunk, _encoding, callback) {
+    this.host.send({ proxyData: { proxyId: this.proxyId, data: chunk } });
+    callback();
   }
-  return { hostname, port };
+
+  _read() {
+    // Data is pushed into the readable buffer from the mux host.
+  }
+
+  onMuxOpen() {
+    this._connected = true;
+    this.emit("connect");
+  }
+
+  onMuxData(data) {
+    this.push(Buffer.from(data));
+  }
+
+  onMuxError(message) {
+    this.destroy(new Error(message));
+  }
+
+  onMuxClose() {
+    this.push(null);
+    this.destroy();
+  }
 }
 
 export function startProxy() {
   if (!config.PROXY_TOKEN) return;
 
-  const server = http.createServer((req, res) => {
-    res.writeHead(405, { "Content-Type": "text/plain" });
-    res.end("CONNECT only\n");
-  });
+  const proxy = proxinator.server.forward();
 
-  server.on("connect", (req, clientSocket, head) => {
-    const auth = parseBasicAuth(req.headers["proxy-authorization"]);
+  proxy.on("connection", (connection) => {
+    const auth = connection.getAuth();
     if (!auth || auth.password !== config.PROXY_TOKEN) {
-      clientSocket.write("HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n");
-      clientSocket.end();
-      log.warn("proxy auth failed", { remote: clientSocket.remoteAddress });
+      connection.error(new Error("Proxy Authentication Required"), 407, {
+        "Proxy-Authenticate": "Basic",
+      });
+      log.warn("proxy auth failed", { remote: connection.getRemoteHost() });
       return;
     }
 
     const host = hosts.get(auth.username);
     if (!host || !host.alive) {
-      clientSocket.write("HTTP/1.1 404 Host Not Found\r\n\r\n");
-      clientSocket.end();
+      connection.error(new Error("Host Not Found"), 404);
       log.warn("proxy host not found", { hostId: auth.username });
       return;
     }
 
-    const target = parseConnectTarget(req.url);
-    if (!target) {
-      clientSocket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
-      clientSocket.end();
+    const destination = connection.getDestination();
+    const hostname = destination.hostname;
+    const port = parseInt(destination.port, 10);
+    if (!hostname || !port) {
+      connection.error(new Error("Bad Request"), 400);
       return;
     }
 
-    const proxyId = host.openProxy(target.hostname, target.port);
+    const proxyId = host.openProxy(hostname, port);
     if (proxyId == null) {
-      clientSocket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
-      clientSocket.end();
+      connection.error(new Error("Service Unavailable"), 503);
       return;
     }
 
     log.info("proxy tunnel requested", {
       proxyId,
       hostId: host.id,
-      target: `${target.hostname}:${target.port}`,
-      remote: clientSocket.remoteAddress,
+      target: `${hostname}:${port}`,
+      remote: connection.getRemoteHost(),
     });
 
-    let opened = false;
-    let cleanup = null;
-
-    function closeTunnel(reason) {
-      if (cleanup) cleanup();
-      host.deleteProxyHandler(proxyId);
-      host.send({ proxyClose: { proxyId, reason } });
-      if (!clientSocket.destroyed) {
-        clientSocket.end();
-      }
-    }
+    const muxSocket = new MuxSocket(host, proxyId);
 
     host.setProxyHandler(proxyId, {
       onOpen: () => {
-        if (opened) return;
-        opened = true;
-        clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
-        if (head && head.length > 0) {
-          host.send({ proxyData: { proxyId, data: head } });
-        }
+        muxSocket.onMuxOpen();
+        connection.bind(muxSocket);
       },
       onOpenError: (message) => {
-        if (opened) return;
-        clientSocket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
-        clientSocket.end();
         log.warn("proxy tunnel open failed", { proxyId, error: message });
+        connection.error(new Error(message), 502);
       },
-      onData: (data) => {
-        if (!clientSocket.destroyed) {
-          clientSocket.write(data);
-        }
-      },
-      onClose: () => {
-        if (!clientSocket.destroyed) {
-          clientSocket.end();
-        }
-      },
+      onData: (data) => muxSocket.onMuxData(data),
+      onClose: () => muxSocket.onMuxClose(),
     });
 
-    clientSocket.on("data", (data) => {
-      if (!opened) return; // buffer until the remote side is confirmed open
-      host.send({ proxyData: { proxyId, data } });
-    });
-
-    clientSocket.on("close", () => closeTunnel("client closed"));
-
-    clientSocket.on("error", (err) => {
-      log.warn("proxy client socket error", { proxyId, error: err.message });
-      closeTunnel(err.message);
-    });
-
-    // Safety: if the remote side never responds, clean up.
-    const connectTimeout = setTimeout(() => {
-      if (!opened) {
-        clientSocket.write("HTTP/1.1 504 Gateway Timeout\r\n\r\n");
-        clientSocket.end();
-        closeTunnel("connect timeout");
+    // Safety timeout if the client never responds.
+    const timeout = setTimeout(() => {
+      if (!muxSocket._connected) {
+        host.deleteProxyHandler(proxyId);
+        host.send({ proxyClose: { proxyId, reason: "connect timeout" } });
+        connection.error(new Error("Gateway Timeout"), 504);
       }
     }, 15000);
 
-    cleanup = () => clearTimeout(connectTimeout);
+    muxSocket.on("close", () => clearTimeout(timeout));
   });
 
-  server.listen(config.PROXY_PORT, config.HOST, () => {
+  proxy.on("error", (error, connection) => {
+    console.error("[proxy] error:", error);
+    log.error("proxy error", {
+      error: error.message,
+      remote: connection ? connection.getRemoteHost() : null,
+    });
+  });
+
+  proxy.http.listen(config.PROXY_PORT, config.HOST, () => {
     console.log(`[proxy] HTTP CONNECT proxy on ${config.HOST}:${config.PROXY_PORT}`);
-  });
-
-  server.on("error", (err) => {
-    console.error("[proxy] server error:", err);
-    log.error("proxy server error", { error: err.message });
   });
 }

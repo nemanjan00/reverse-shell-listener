@@ -23,7 +23,8 @@
   "dependencies": {
     "express": "^5.2.1",
     "express-ws": "^5.0.2",
-    "protobufjs": "^8.7.2"
+    "protobufjs": "^8.7.2",
+    "proxinator": "^0.0.7"
   },
   "devDependencies": {
     "@nemanjan00/qrp": "^0.9.3",
