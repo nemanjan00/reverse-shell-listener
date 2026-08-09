@@ -46,10 +46,10 @@ class MuxSocket extends Duplex {
   }
 }
 
-export function startProxy() {
+export function startProxy(httpServer) {
   if (!config.PROXY_TOKEN) return;
 
-  const proxy = proxinator.server.forward();
+  const proxy = proxinator.server.forward(httpServer);
 
   proxy.on("connection", (connection) => {
     const auth = connection.getAuth();
@@ -124,7 +124,11 @@ export function startProxy() {
     });
   });
 
-  proxy.http.listen(config.PROXY_PORT, config.HOST, () => {
-    console.log(`[proxy] HTTP CONNECT proxy on ${config.HOST}:${config.PROXY_PORT}`);
-  });
+  if (httpServer) {
+    console.log("[proxy] HTTP CONNECT proxy attached to dashboard server");
+  } else {
+    proxy.http.listen(config.PROXY_PORT, config.HOST, () => {
+      console.log(`[proxy] HTTP CONNECT proxy on ${config.HOST}:${config.PROXY_PORT}`);
+    });
+  }
 }

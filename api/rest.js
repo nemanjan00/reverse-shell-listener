@@ -121,15 +121,20 @@ export function restRouter() {
 
   // --- Runtime config exposed to the authenticated dashboard -----------------
   router.get("/config", (req, res) => {
-    // The proxy runs on its own TCP port (PROXY_PORT). Use the dashboard's
-    // hostname so the operator gets a URL pointing at the same host; behind a
-    // reverse proxy X-Forwarded-Host overrides it. The scheme is HTTP because
-    // the native server only serves HTTP; TLS termination happens at the edge.
-    const host = req.headers["x-forwarded-host"] || req.hostname || "";
     const proxyEnabled = Boolean(config.PROXY_TOKEN);
+    if (!proxyEnabled) {
+      return res.json({ proxy_url: "", proxy_enabled: false, proxy_token: "", build_token: config.BUILD_TOKEN || "" });
+    }
+    const proto = req.secure || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "";
+    // Dedicated proxy port => plain HTTP listener. Shared API port => same
+    // scheme/host the dashboard is accessed on.
+    const proxyUrl = config.PROXY_PORT
+      ? `http://${req.headers["x-forwarded-host"] || req.hostname || ""}:${config.PROXY_PORT}`
+      : `${proto}://${host}`;
     res.json({
-      proxy_url: proxyEnabled && host ? `http://${host}:${config.PROXY_PORT}` : "",
-      proxy_enabled: proxyEnabled,
+      proxy_url: host ? proxyUrl : "",
+      proxy_enabled: true,
       proxy_token: config.PROXY_TOKEN || "",
       build_token: config.BUILD_TOKEN || "",
     });
