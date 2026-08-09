@@ -71,11 +71,11 @@ function parseCookies(header = "") {
   return out;
 }
 
-// True when auth is off, or the request carries a valid session cookie. Used by
-// both the HTTP middleware and the WebSocket handlers (browsers send cookies on
-// same-origin WS handshakes automatically).
+// True when the request carries a valid session cookie. Used by both the HTTP
+// middleware and the WebSocket handlers (browsers send cookies on same-origin
+// WS handshakes automatically). Auth is enforced at startup, so this is only
+// ever called when AUTH_USER/AUTH_PASS are set.
 export function authorized(req) {
-  if (!authEnabled()) return true;
   const cookies = parseCookies(req.headers && req.headers.cookie);
   return verifyToken(cookies[COOKIE]);
 }
@@ -100,11 +100,12 @@ export function clearCookie() {
 // express-ws upgrades bypass app.use(), so WS handlers call authorized() too.
 export function requireAuth() {
   if (!authEnabled()) {
-    console.warn(
-      "[auth] WARNING: no AUTH_USER/AUTH_PASS set — dashboard is UNAUTHENTICATED. " +
-        "Set both env vars, and never expose this to an untrusted network."
+    console.error(
+      "[auth] FATAL: AUTH_USER/AUTH_PASS not set. Refusing to start without " +
+        "operator credentials. Set both env vars (e.g. in a .env file or your " +
+        "process manager) and restart."
     );
-    return (req, res, next) => next();
+    process.exit(1);
   }
 
   console.log("[auth] dashboard protected by session login");

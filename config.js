@@ -21,9 +21,7 @@ const config = {
   // Mux transport keepalive: server pings each host connection this often (ms).
   MUX_PING_MS: num(process.env.MUX_PING_MS, 20000),
 
-  // Dashboard HTTP Basic Auth. When both are set, the dashboard, REST API and
-  // WebSocket endpoints require these credentials. Left unset -> no auth (a
-  // loud warning is logged; only acceptable behind a trusted tunnel).
+  // Dashboard login. Required — the server refuses to start without both set.
   AUTH_USER: process.env.AUTH_USER || "",
   AUTH_PASS: process.env.AUTH_PASS || "",
   // Pin session cookies across restarts. Optional.

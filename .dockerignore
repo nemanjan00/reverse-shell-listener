@@ -1,0 +1,12 @@
+.git
+.gitignore
+node_modules
+public/dist
+certs
+client/rsl-client
+client/rsl-client-*
+client/*.exe
+*.md
+!README.md
+screenshot
+.tool-versions

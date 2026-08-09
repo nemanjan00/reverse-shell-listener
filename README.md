@@ -12,8 +12,8 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
   - TLS reverse-shell listener
   - HTTP webshell beacon transport
   - multiplexed WebSocket/protobuf implant protocol with a Go client
-- **Dashboard:** qrp + xterm.js, Dracula theme, live session list, full PTY terminal with resize and mouse support.
-- **Auth:** optional session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
+- **Dashboard:** live session list with a full PTY terminal (resize + mouse support).
+- **Auth:** session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
 
 ![Screenshot](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/screenshot.png)
 
@@ -22,16 +22,23 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
 ```bash
 npm install
 npm run build
-npm start
-```
-
-Then browse to `http://localhost:8080`.
-
-With auth:
-
-```bash
 AUTH_USER=admin AUTH_PASS=s3cr3t npm start
 ```
+
+Then browse to `http://localhost:8080`. `AUTH_USER` / `AUTH_PASS` are required.
+
+## Docker
+
+```bash
+docker build -t reverse-shell-listener .
+docker run -p 8080:8080 -p 1337:1337 -p 1338:1338 \
+  -e AUTH_USER=admin -e AUTH_PASS=s3cr3t \
+  reverse-shell-listener
+```
+
+The image bundles the frontend, the Node server, and the Go mux client
+(`rsl-client` is on `$PATH` inside the container). The TLS transport
+auto-generates a self-signed cert on first start using the bundled `openssl`.
 
 ## Scripts
 
@@ -54,8 +61,8 @@ AUTH_USER=admin AUTH_PASS=s3cr3t npm start
 | `ENABLE_TLS`        | true    |                                                  |
 | `ENABLE_WEBSHELL`   | true    |                                                  |
 | `ENABLE_MUX`        | true    | Multiplexed Go client WebSocket transport        |
-| `AUTH_USER`         |         | Dashboard/REST/WS login username                 |
-| `AUTH_PASS`         |         | Dashboard/REST/WS login password                 |
+| `AUTH_USER`         |         | **Required.** Dashboard/REST/WS login username    |
+| `AUTH_PASS`         |         | **Required.** Dashboard/REST/WS login password    |
 | `AUTH_SECRET`       | random  | Pin session cookie secret across restarts        |
 | `SCROLLBACK_BYTES`  | 1 MB    | Per-session in-memory scrollback cap             |
 | `WEBSHELL_POLL_MS`  | 25000   | Long-poll hold time                              |
@@ -163,9 +170,8 @@ a signed `rsl_session` cookie issued at `/login`:
   (express-ws upgrades bypass HTTP middleware, so each handler re-checks the
   cookie and closes the socket with `1008` if it is missing or invalid).
 
-Without `AUTH_USER` / `AUTH_PASS` set, `authorized()` returns `true` for
-everything and the server logs a loud warning. This is only safe behind a
-trusted tunnel.
+`AUTH_USER` / `AUTH_PASS` are required — the server refuses to start without
+them.
 
 `/webshell/*` and `/mux` are deliberately unauthenticated — implants are dumb
 loops on the target and cannot carry operator credentials. The raw TCP and
