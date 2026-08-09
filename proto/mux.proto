@@ -60,6 +60,17 @@ message Hello {
   uint32 version  = 5;  // protocol version (see PROTO_VERSION)
   string tags     = 6;  // free-form label the operator can set on the implant
   string token    = 7;  // BUILD_TOKEN; server rejects the connection if it mismatches
+  uint32 features = 8;  // bitmap of Feature bits the client supports
+}
+
+// Feature bits advertised by the client in Hello.features. Newer clients set
+// the bits for capabilities compiled into the implant; the dashboard uses them
+// to hide or disable unsupported controls when talking to older clients.
+enum Feature {
+  FEATURE_UNSPECIFIED   = 0;
+  FEATURE_FILE_TRANSFER = 1;  // FileRequest/FileStart/FileChunk/FileDone
+  FEATURE_PROXY         = 2;  // ProxyOpen/ProxyData/ProxyClose
+  FEATURE_FILE_MANAGER  = 4;  // FsList/FsStat
 }
 
 // Server asks the client to spawn a new shell channel.
@@ -186,9 +197,10 @@ message FsEntry {
 
 // Client returns the result of FsList.
 message FsListResult {
-  uint32    request_id = 1;
-  string    error      = 2;  // empty on success
-  repeated  FsEntry entries = 3;
+  uint32    request_id    = 1;
+  string    error         = 2;  // empty on success
+  repeated  FsEntry entries    = 3;
+  string    absolute_path = 4;  // resolved absolute path of the listed directory
 }
 
 // Server asks the client to stat a path.

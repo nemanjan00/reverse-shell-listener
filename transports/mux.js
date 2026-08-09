@@ -64,6 +64,7 @@ function fsFrameToJson(frame) {
       type: "fs_list_result",
       request_id: frame.fsListResult.requestId,
       error: frame.fsListResult.error || "",
+      absolute_path: frame.fsListResult.absolutePath || "",
       entries: (frame.fsListResult.entries || []).map((e) => ({
         name: e.name,
         is_dir: e.isDir,
@@ -212,6 +213,7 @@ class Host {
       os: this.hello.os || "",
       arch: this.hello.arch || "",
       tags: this.hello.tags || "",
+      features: this.hello.features || 0,
       channels: this._channels.size,
       channelList: [...this._channels.entries()].map(([id, ch]) => ({
         channelId: id,
@@ -357,6 +359,7 @@ export function registerMux(app) {
           arch: frame.hello.arch,
           tags: frame.hello.tags,
           version: frame.hello.version,
+          features: Number(frame.hello.features) || 0,
         };
         hosts.add(host);
         console.log(`[mux]  host ${host.id} connected: ${host.label()} (${remote})`);

@@ -5,6 +5,15 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import "./theme.css";
 
+// --- Mux feature bits (mirrors proto/mux.proto Feature enum) -----------------
+const FEATURE_FILE_TRANSFER = 1;
+const FEATURE_PROXY = 2;
+const FEATURE_FILE_MANAGER = 4;
+
+function hostHasFeature(host, bit) {
+  return Boolean((host.features || 0) & bit);
+}
+
 // --- Dracula theme for xterm ------------------------------------------------
 const draculaTheme = {
   background: "#282a36",
@@ -701,6 +710,9 @@ function connectFsSocket(hostId) {
           if (a.is_dir === b.is_dir) return a.name.localeCompare(b.name);
           return a.is_dir ? -1 : 1;
         });
+        if (msg.absolute_path) {
+          setFsPath(hostId, msg.absolute_path);
+        }
         setFsEntries(hostId, { entries, loading: false, error: "" });
       }
     }
@@ -737,15 +749,15 @@ function fsNavigate(hostId, name) {
 
 function fsUp(hostId) {
   const current = getFsPath(hostId);
-  if (current === "." || current === "/" || /^[A-Za-z]:\\$/.test(current)) {
+  if (current === "/" || /^[A-Za-z]:\\$/.test(current)) {
     return;
   }
   const sep = current.includes("\\") ? "\\" : "/";
   const idx = current.lastIndexOf(sep);
   if (idx <= 0) {
-    fsList(hostId, ".");
+    fsList(hostId, "/");
   } else {
-    fsList(hostId, current.slice(0, idx));
+    fsList(hostId, current.slice(0, idx) || "/");
   }
 }
 
@@ -773,8 +785,9 @@ async function openHostShell(hostId) {
 function openHostDetails(hostId) {
   app.hostDetailsId = hostId;
   // Warm up the file-system browser socket and load the current directory.
+  const host = app.hosts.find((h) => h.id === hostId);
   const current = getFsPath(hostId);
-  if (!app.fsSockets[hostId]) {
+  if (host && hostHasFeature(host, FEATURE_FILE_MANAGER) && !app.fsSockets[hostId]) {
     fsList(hostId, current);
   }
 }
@@ -1477,8 +1490,14 @@ const HostDetails = () =>
               )
             )
           ),
-          FileManagerPanel(h),
-          FileTransferPanel(h),
+          when(
+            () => hostHasFeature(h, FEATURE_FILE_MANAGER),
+            () => FileManagerPanel(h)
+          ),
+          when(
+            () => hostHasFeature(h, FEATURE_FILE_TRANSFER),
+            () => FileTransferPanel(h)
+          ),
           el(
             "div",
             { class: "host-details-actions" },

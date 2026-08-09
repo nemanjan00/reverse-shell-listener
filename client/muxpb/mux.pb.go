@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.35.1
-// source: mux.proto
+// source: proto/mux.proto
 
 package muxpb
 
@@ -20,6 +20,61 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// Feature bits advertised by the client in Hello.features. Newer clients set
+// the bits for capabilities compiled into the implant; the dashboard uses them
+// to hide or disable unsupported controls when talking to older clients.
+type Feature int32
+
+const (
+	Feature_FEATURE_UNSPECIFIED   Feature = 0
+	Feature_FEATURE_FILE_TRANSFER Feature = 1 // FileRequest/FileStart/FileChunk/FileDone
+	Feature_FEATURE_PROXY         Feature = 2 // ProxyOpen/ProxyData/ProxyClose
+	Feature_FEATURE_FILE_MANAGER  Feature = 4 // FsList/FsStat
+)
+
+// Enum value maps for Feature.
+var (
+	Feature_name = map[int32]string{
+		0: "FEATURE_UNSPECIFIED",
+		1: "FEATURE_FILE_TRANSFER",
+		2: "FEATURE_PROXY",
+		4: "FEATURE_FILE_MANAGER",
+	}
+	Feature_value = map[string]int32{
+		"FEATURE_UNSPECIFIED":   0,
+		"FEATURE_FILE_TRANSFER": 1,
+		"FEATURE_PROXY":         2,
+		"FEATURE_FILE_MANAGER":  4,
+	}
+)
+
+func (x Feature) Enum() *Feature {
+	p := new(Feature)
+	*p = x
+	return p
+}
+
+func (x Feature) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Feature) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_mux_proto_enumTypes[0].Descriptor()
+}
+
+func (Feature) Type() protoreflect.EnumType {
+	return &file_proto_mux_proto_enumTypes[0]
+}
+
+func (x Feature) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Feature.Descriptor instead.
+func (Feature) EnumDescriptor() ([]byte, []int) {
+	return file_proto_mux_proto_rawDescGZIP(), []int{0}
+}
 
 type Frame struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -55,7 +110,7 @@ type Frame struct {
 
 func (x *Frame) Reset() {
 	*x = Frame{}
-	mi := &file_mux_proto_msgTypes[0]
+	mi := &file_proto_mux_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -67,7 +122,7 @@ func (x *Frame) String() string {
 func (*Frame) ProtoMessage() {}
 
 func (x *Frame) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[0]
+	mi := &file_proto_mux_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -80,7 +135,7 @@ func (x *Frame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Frame.ProtoReflect.Descriptor instead.
 func (*Frame) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{0}
+	return file_proto_mux_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Frame) GetKind() isFrame_Kind {
@@ -447,18 +502,19 @@ type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Hostname      string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	Os            string                 `protobuf:"bytes,3,opt,name=os,proto3" json:"os,omitempty"`            // runtime.GOOS
-	Arch          string                 `protobuf:"bytes,4,opt,name=arch,proto3" json:"arch,omitempty"`        // runtime.GOARCH
-	Version       uint32                 `protobuf:"varint,5,opt,name=version,proto3" json:"version,omitempty"` // protocol version (see PROTO_VERSION)
-	Tags          string                 `protobuf:"bytes,6,opt,name=tags,proto3" json:"tags,omitempty"`        // free-form label the operator can set on the implant
-	Token         string                 `protobuf:"bytes,7,opt,name=token,proto3" json:"token,omitempty"`      // BUILD_TOKEN; server rejects the connection if it mismatches
+	Os            string                 `protobuf:"bytes,3,opt,name=os,proto3" json:"os,omitempty"`              // runtime.GOOS
+	Arch          string                 `protobuf:"bytes,4,opt,name=arch,proto3" json:"arch,omitempty"`          // runtime.GOARCH
+	Version       uint32                 `protobuf:"varint,5,opt,name=version,proto3" json:"version,omitempty"`   // protocol version (see PROTO_VERSION)
+	Tags          string                 `protobuf:"bytes,6,opt,name=tags,proto3" json:"tags,omitempty"`          // free-form label the operator can set on the implant
+	Token         string                 `protobuf:"bytes,7,opt,name=token,proto3" json:"token,omitempty"`        // BUILD_TOKEN; server rejects the connection if it mismatches
+	Features      uint32                 `protobuf:"varint,8,opt,name=features,proto3" json:"features,omitempty"` // bitmap of Feature bits the client supports
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
 	*x = Hello{}
-	mi := &file_mux_proto_msgTypes[1]
+	mi := &file_proto_mux_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -470,7 +526,7 @@ func (x *Hello) String() string {
 func (*Hello) ProtoMessage() {}
 
 func (x *Hello) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[1]
+	mi := &file_proto_mux_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -483,7 +539,7 @@ func (x *Hello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Hello.ProtoReflect.Descriptor instead.
 func (*Hello) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{1}
+	return file_proto_mux_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Hello) GetHostname() string {
@@ -535,6 +591,13 @@ func (x *Hello) GetToken() string {
 	return ""
 }
 
+func (x *Hello) GetFeatures() uint32 {
+	if x != nil {
+		return x.Features
+	}
+	return 0
+}
+
 // Server asks the client to spawn a new shell channel.
 type OpenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -548,7 +611,7 @@ type OpenRequest struct {
 
 func (x *OpenRequest) Reset() {
 	*x = OpenRequest{}
-	mi := &file_mux_proto_msgTypes[2]
+	mi := &file_proto_mux_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -560,7 +623,7 @@ func (x *OpenRequest) String() string {
 func (*OpenRequest) ProtoMessage() {}
 
 func (x *OpenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[2]
+	mi := &file_proto_mux_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -573,7 +636,7 @@ func (x *OpenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenRequest.ProtoReflect.Descriptor instead.
 func (*OpenRequest) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{2}
+	return file_proto_mux_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *OpenRequest) GetChannelId() uint32 {
@@ -614,7 +677,7 @@ type OpenOk struct {
 
 func (x *OpenOk) Reset() {
 	*x = OpenOk{}
-	mi := &file_mux_proto_msgTypes[3]
+	mi := &file_proto_mux_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -626,7 +689,7 @@ func (x *OpenOk) String() string {
 func (*OpenOk) ProtoMessage() {}
 
 func (x *OpenOk) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[3]
+	mi := &file_proto_mux_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -639,7 +702,7 @@ func (x *OpenOk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenOk.ProtoReflect.Descriptor instead.
 func (*OpenOk) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{3}
+	return file_proto_mux_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *OpenOk) GetChannelId() uint32 {
@@ -666,7 +729,7 @@ type OpenError struct {
 
 func (x *OpenError) Reset() {
 	*x = OpenError{}
-	mi := &file_mux_proto_msgTypes[4]
+	mi := &file_proto_mux_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -678,7 +741,7 @@ func (x *OpenError) String() string {
 func (*OpenError) ProtoMessage() {}
 
 func (x *OpenError) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[4]
+	mi := &file_proto_mux_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -691,7 +754,7 @@ func (x *OpenError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenError.ProtoReflect.Descriptor instead.
 func (*OpenError) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{4}
+	return file_proto_mux_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *OpenError) GetChannelId() uint32 {
@@ -719,7 +782,7 @@ type Data struct {
 
 func (x *Data) Reset() {
 	*x = Data{}
-	mi := &file_mux_proto_msgTypes[5]
+	mi := &file_proto_mux_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -731,7 +794,7 @@ func (x *Data) String() string {
 func (*Data) ProtoMessage() {}
 
 func (x *Data) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[5]
+	mi := &file_proto_mux_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -744,7 +807,7 @@ func (x *Data) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data.ProtoReflect.Descriptor instead.
 func (*Data) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{5}
+	return file_proto_mux_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Data) GetChannelId() uint32 {
@@ -773,7 +836,7 @@ type Resize struct {
 
 func (x *Resize) Reset() {
 	*x = Resize{}
-	mi := &file_mux_proto_msgTypes[6]
+	mi := &file_proto_mux_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -785,7 +848,7 @@ func (x *Resize) String() string {
 func (*Resize) ProtoMessage() {}
 
 func (x *Resize) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[6]
+	mi := &file_proto_mux_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -798,7 +861,7 @@ func (x *Resize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Resize.ProtoReflect.Descriptor instead.
 func (*Resize) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{6}
+	return file_proto_mux_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Resize) GetChannelId() uint32 {
@@ -834,7 +897,7 @@ type Close struct {
 
 func (x *Close) Reset() {
 	*x = Close{}
-	mi := &file_mux_proto_msgTypes[7]
+	mi := &file_proto_mux_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -846,7 +909,7 @@ func (x *Close) String() string {
 func (*Close) ProtoMessage() {}
 
 func (x *Close) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[7]
+	mi := &file_proto_mux_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -859,7 +922,7 @@ func (x *Close) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Close.ProtoReflect.Descriptor instead.
 func (*Close) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{7}
+	return file_proto_mux_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Close) GetChannelId() uint32 {
@@ -892,7 +955,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_mux_proto_msgTypes[8]
+	mi := &file_proto_mux_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -904,7 +967,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[8]
+	mi := &file_proto_mux_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -917,7 +980,7 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ping.ProtoReflect.Descriptor instead.
 func (*Ping) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{8}
+	return file_proto_mux_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Ping) GetNonce() uint64 {
@@ -936,7 +999,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_mux_proto_msgTypes[9]
+	mi := &file_proto_mux_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -948,7 +1011,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[9]
+	mi := &file_proto_mux_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -961,7 +1024,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{9}
+	return file_proto_mux_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Pong) GetNonce() uint64 {
@@ -987,7 +1050,7 @@ type AutoExec struct {
 
 func (x *AutoExec) Reset() {
 	*x = AutoExec{}
-	mi := &file_mux_proto_msgTypes[10]
+	mi := &file_proto_mux_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -999,7 +1062,7 @@ func (x *AutoExec) String() string {
 func (*AutoExec) ProtoMessage() {}
 
 func (x *AutoExec) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[10]
+	mi := &file_proto_mux_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1012,7 +1075,7 @@ func (x *AutoExec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AutoExec.ProtoReflect.Descriptor instead.
 func (*AutoExec) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{10}
+	return file_proto_mux_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AutoExec) GetOs() string {
@@ -1047,7 +1110,7 @@ type FileRequest struct {
 
 func (x *FileRequest) Reset() {
 	*x = FileRequest{}
-	mi := &file_mux_proto_msgTypes[11]
+	mi := &file_proto_mux_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1059,7 +1122,7 @@ func (x *FileRequest) String() string {
 func (*FileRequest) ProtoMessage() {}
 
 func (x *FileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[11]
+	mi := &file_proto_mux_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1072,7 +1135,7 @@ func (x *FileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileRequest.ProtoReflect.Descriptor instead.
 func (*FileRequest) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{11}
+	return file_proto_mux_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *FileRequest) GetTransferId() uint32 {
@@ -1102,7 +1165,7 @@ type FileStart struct {
 
 func (x *FileStart) Reset() {
 	*x = FileStart{}
-	mi := &file_mux_proto_msgTypes[12]
+	mi := &file_proto_mux_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1114,7 +1177,7 @@ func (x *FileStart) String() string {
 func (*FileStart) ProtoMessage() {}
 
 func (x *FileStart) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[12]
+	mi := &file_proto_mux_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1127,7 +1190,7 @@ func (x *FileStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileStart.ProtoReflect.Descriptor instead.
 func (*FileStart) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{12}
+	return file_proto_mux_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *FileStart) GetTransferId() uint32 {
@@ -1162,7 +1225,7 @@ type FileChunk struct {
 
 func (x *FileChunk) Reset() {
 	*x = FileChunk{}
-	mi := &file_mux_proto_msgTypes[13]
+	mi := &file_proto_mux_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1174,7 +1237,7 @@ func (x *FileChunk) String() string {
 func (*FileChunk) ProtoMessage() {}
 
 func (x *FileChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[13]
+	mi := &file_proto_mux_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1187,7 +1250,7 @@ func (x *FileChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileChunk.ProtoReflect.Descriptor instead.
 func (*FileChunk) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{13}
+	return file_proto_mux_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *FileChunk) GetTransferId() uint32 {
@@ -1215,7 +1278,7 @@ type FileDone struct {
 
 func (x *FileDone) Reset() {
 	*x = FileDone{}
-	mi := &file_mux_proto_msgTypes[14]
+	mi := &file_proto_mux_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1227,7 +1290,7 @@ func (x *FileDone) String() string {
 func (*FileDone) ProtoMessage() {}
 
 func (x *FileDone) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[14]
+	mi := &file_proto_mux_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1240,7 +1303,7 @@ func (x *FileDone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileDone.ProtoReflect.Descriptor instead.
 func (*FileDone) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{14}
+	return file_proto_mux_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *FileDone) GetTransferId() uint32 {
@@ -1269,7 +1332,7 @@ type ProxyOpen struct {
 
 func (x *ProxyOpen) Reset() {
 	*x = ProxyOpen{}
-	mi := &file_mux_proto_msgTypes[15]
+	mi := &file_proto_mux_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1281,7 +1344,7 @@ func (x *ProxyOpen) String() string {
 func (*ProxyOpen) ProtoMessage() {}
 
 func (x *ProxyOpen) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[15]
+	mi := &file_proto_mux_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1294,7 +1357,7 @@ func (x *ProxyOpen) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProxyOpen.ProtoReflect.Descriptor instead.
 func (*ProxyOpen) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{15}
+	return file_proto_mux_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ProxyOpen) GetProxyId() uint32 {
@@ -1328,7 +1391,7 @@ type ProxyOpenOk struct {
 
 func (x *ProxyOpenOk) Reset() {
 	*x = ProxyOpenOk{}
-	mi := &file_mux_proto_msgTypes[16]
+	mi := &file_proto_mux_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1340,7 +1403,7 @@ func (x *ProxyOpenOk) String() string {
 func (*ProxyOpenOk) ProtoMessage() {}
 
 func (x *ProxyOpenOk) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[16]
+	mi := &file_proto_mux_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1353,7 +1416,7 @@ func (x *ProxyOpenOk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProxyOpenOk.ProtoReflect.Descriptor instead.
 func (*ProxyOpenOk) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{16}
+	return file_proto_mux_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ProxyOpenOk) GetProxyId() uint32 {
@@ -1374,7 +1437,7 @@ type ProxyOpenError struct {
 
 func (x *ProxyOpenError) Reset() {
 	*x = ProxyOpenError{}
-	mi := &file_mux_proto_msgTypes[17]
+	mi := &file_proto_mux_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1386,7 +1449,7 @@ func (x *ProxyOpenError) String() string {
 func (*ProxyOpenError) ProtoMessage() {}
 
 func (x *ProxyOpenError) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[17]
+	mi := &file_proto_mux_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1399,7 +1462,7 @@ func (x *ProxyOpenError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProxyOpenError.ProtoReflect.Descriptor instead.
 func (*ProxyOpenError) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{17}
+	return file_proto_mux_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ProxyOpenError) GetProxyId() uint32 {
@@ -1427,7 +1490,7 @@ type ProxyData struct {
 
 func (x *ProxyData) Reset() {
 	*x = ProxyData{}
-	mi := &file_mux_proto_msgTypes[18]
+	mi := &file_proto_mux_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1439,7 +1502,7 @@ func (x *ProxyData) String() string {
 func (*ProxyData) ProtoMessage() {}
 
 func (x *ProxyData) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[18]
+	mi := &file_proto_mux_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1452,7 +1515,7 @@ func (x *ProxyData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProxyData.ProtoReflect.Descriptor instead.
 func (*ProxyData) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{18}
+	return file_proto_mux_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ProxyData) GetProxyId() uint32 {
@@ -1480,7 +1543,7 @@ type ProxyClose struct {
 
 func (x *ProxyClose) Reset() {
 	*x = ProxyClose{}
-	mi := &file_mux_proto_msgTypes[19]
+	mi := &file_proto_mux_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1492,7 +1555,7 @@ func (x *ProxyClose) String() string {
 func (*ProxyClose) ProtoMessage() {}
 
 func (x *ProxyClose) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[19]
+	mi := &file_proto_mux_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1505,7 +1568,7 @@ func (x *ProxyClose) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProxyClose.ProtoReflect.Descriptor instead.
 func (*ProxyClose) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{19}
+	return file_proto_mux_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ProxyClose) GetProxyId() uint32 {
@@ -1533,7 +1596,7 @@ type FsList struct {
 
 func (x *FsList) Reset() {
 	*x = FsList{}
-	mi := &file_mux_proto_msgTypes[20]
+	mi := &file_proto_mux_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1545,7 +1608,7 @@ func (x *FsList) String() string {
 func (*FsList) ProtoMessage() {}
 
 func (x *FsList) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[20]
+	mi := &file_proto_mux_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1558,7 +1621,7 @@ func (x *FsList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FsList.ProtoReflect.Descriptor instead.
 func (*FsList) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{20}
+	return file_proto_mux_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *FsList) GetRequestId() uint32 {
@@ -1588,7 +1651,7 @@ type FsEntry struct {
 
 func (x *FsEntry) Reset() {
 	*x = FsEntry{}
-	mi := &file_mux_proto_msgTypes[21]
+	mi := &file_proto_mux_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1600,7 +1663,7 @@ func (x *FsEntry) String() string {
 func (*FsEntry) ProtoMessage() {}
 
 func (x *FsEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[21]
+	mi := &file_proto_mux_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1613,7 +1676,7 @@ func (x *FsEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FsEntry.ProtoReflect.Descriptor instead.
 func (*FsEntry) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{21}
+	return file_proto_mux_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *FsEntry) GetName() string {
@@ -1650,13 +1713,14 @@ type FsListResult struct {
 	RequestId     uint32                 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"` // empty on success
 	Entries       []*FsEntry             `protobuf:"bytes,3,rep,name=entries,proto3" json:"entries,omitempty"`
+	AbsolutePath  string                 `protobuf:"bytes,4,opt,name=absolute_path,json=absolutePath,proto3" json:"absolute_path,omitempty"` // resolved absolute path of the listed directory
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *FsListResult) Reset() {
 	*x = FsListResult{}
-	mi := &file_mux_proto_msgTypes[22]
+	mi := &file_proto_mux_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1668,7 +1732,7 @@ func (x *FsListResult) String() string {
 func (*FsListResult) ProtoMessage() {}
 
 func (x *FsListResult) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[22]
+	mi := &file_proto_mux_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1681,7 +1745,7 @@ func (x *FsListResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FsListResult.ProtoReflect.Descriptor instead.
 func (*FsListResult) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{22}
+	return file_proto_mux_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *FsListResult) GetRequestId() uint32 {
@@ -1705,6 +1769,13 @@ func (x *FsListResult) GetEntries() []*FsEntry {
 	return nil
 }
 
+func (x *FsListResult) GetAbsolutePath() string {
+	if x != nil {
+		return x.AbsolutePath
+	}
+	return ""
+}
+
 // Server asks the client to stat a path.
 type FsStat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1716,7 +1787,7 @@ type FsStat struct {
 
 func (x *FsStat) Reset() {
 	*x = FsStat{}
-	mi := &file_mux_proto_msgTypes[23]
+	mi := &file_proto_mux_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1728,7 +1799,7 @@ func (x *FsStat) String() string {
 func (*FsStat) ProtoMessage() {}
 
 func (x *FsStat) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[23]
+	mi := &file_proto_mux_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1741,7 +1812,7 @@ func (x *FsStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FsStat.ProtoReflect.Descriptor instead.
 func (*FsStat) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{23}
+	return file_proto_mux_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *FsStat) GetRequestId() uint32 {
@@ -1773,7 +1844,7 @@ type FsStatResult struct {
 
 func (x *FsStatResult) Reset() {
 	*x = FsStatResult{}
-	mi := &file_mux_proto_msgTypes[24]
+	mi := &file_proto_mux_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1785,7 +1856,7 @@ func (x *FsStatResult) String() string {
 func (*FsStatResult) ProtoMessage() {}
 
 func (x *FsStatResult) ProtoReflect() protoreflect.Message {
-	mi := &file_mux_proto_msgTypes[24]
+	mi := &file_proto_mux_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1798,7 +1869,7 @@ func (x *FsStatResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FsStatResult.ProtoReflect.Descriptor instead.
 func (*FsStatResult) Descriptor() ([]byte, []int) {
-	return file_mux_proto_rawDescGZIP(), []int{24}
+	return file_proto_mux_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *FsStatResult) GetRequestId() uint32 {
@@ -1843,11 +1914,11 @@ func (x *FsStatResult) GetModTime() int64 {
 	return 0
 }
 
-var File_mux_proto protoreflect.FileDescriptor
+var File_proto_mux_proto protoreflect.FileDescriptor
 
-const file_mux_proto_rawDesc = "" +
+const file_proto_mux_proto_rawDesc = "" +
 	"\n" +
-	"\tmux.proto\x12\x03mux\"\xbb\b\n" +
+	"\x0fproto/mux.proto\x12\x03mux\"\xbb\b\n" +
 	"\x05Frame\x12\"\n" +
 	"\x05hello\x18\x01 \x01(\v2\n" +
 	".mux.HelloH\x00R\x05hello\x125\n" +
@@ -1881,7 +1952,7 @@ const file_mux_proto_rawDesc = "" +
 	"\x0efs_list_result\x18\x15 \x01(\v2\x11.mux.FsListResultH\x00R\ffsListResult\x12&\n" +
 	"\afs_stat\x18\x16 \x01(\v2\v.mux.FsStatH\x00R\x06fsStat\x129\n" +
 	"\x0efs_stat_result\x18\x17 \x01(\v2\x11.mux.FsStatResultH\x00R\ffsStatResultB\x06\n" +
-	"\x04kind\"\xa7\x01\n" +
+	"\x04kind\"\xc3\x01\n" +
 	"\x05Hello\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x0e\n" +
@@ -1889,7 +1960,8 @@ const file_mux_proto_rawDesc = "" +
 	"\x04arch\x18\x04 \x01(\tR\x04arch\x12\x18\n" +
 	"\aversion\x18\x05 \x01(\rR\aversion\x12\x12\n" +
 	"\x04tags\x18\x06 \x01(\tR\x04tags\x12\x14\n" +
-	"\x05token\x18\a \x01(\tR\x05token\"n\n" +
+	"\x05token\x18\a \x01(\tR\x05token\x12\x1a\n" +
+	"\bfeatures\x18\b \x01(\rR\bfeatures\"n\n" +
 	"\vOpenRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\rR\tchannelId\x12\x18\n" +
@@ -1967,12 +2039,13 @@ const file_mux_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x15\n" +
 	"\x06is_dir\x18\x02 \x01(\bR\x05isDir\x12\x12\n" +
 	"\x04size\x18\x03 \x01(\x04R\x04size\x12\x19\n" +
-	"\bmod_time\x18\x04 \x01(\x03R\amodTime\"k\n" +
+	"\bmod_time\x18\x04 \x01(\x03R\amodTime\"\x90\x01\n" +
 	"\fFsListResult\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\rR\trequestId\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12&\n" +
-	"\aentries\x18\x03 \x03(\v2\f.mux.FsEntryR\aentries\";\n" +
+	"\aentries\x18\x03 \x03(\v2\f.mux.FsEntryR\aentries\x12#\n" +
+	"\rabsolute_path\x18\x04 \x01(\tR\fabsolutePath\";\n" +
 	"\x06FsStat\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\rR\trequestId\x12\x12\n" +
@@ -1984,73 +2057,80 @@ const file_mux_proto_rawDesc = "" +
 	"\x06exists\x18\x03 \x01(\bR\x06exists\x12\x15\n" +
 	"\x06is_dir\x18\x04 \x01(\bR\x05isDir\x12\x12\n" +
 	"\x04size\x18\x05 \x01(\x04R\x04size\x12\x19\n" +
-	"\bmod_time\x18\x06 \x01(\x03R\amodTimeB;Z9github.com/nemanjan00/reverse-shell-listener/client/muxpbb\x06proto3"
+	"\bmod_time\x18\x06 \x01(\x03R\amodTime*j\n" +
+	"\aFeature\x12\x17\n" +
+	"\x13FEATURE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15FEATURE_FILE_TRANSFER\x10\x01\x12\x11\n" +
+	"\rFEATURE_PROXY\x10\x02\x12\x18\n" +
+	"\x14FEATURE_FILE_MANAGER\x10\x04B;Z9github.com/nemanjan00/reverse-shell-listener/client/muxpbb\x06proto3"
 
 var (
-	file_mux_proto_rawDescOnce sync.Once
-	file_mux_proto_rawDescData []byte
+	file_proto_mux_proto_rawDescOnce sync.Once
+	file_proto_mux_proto_rawDescData []byte
 )
 
-func file_mux_proto_rawDescGZIP() []byte {
-	file_mux_proto_rawDescOnce.Do(func() {
-		file_mux_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_mux_proto_rawDesc), len(file_mux_proto_rawDesc)))
+func file_proto_mux_proto_rawDescGZIP() []byte {
+	file_proto_mux_proto_rawDescOnce.Do(func() {
+		file_proto_mux_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_mux_proto_rawDesc), len(file_proto_mux_proto_rawDesc)))
 	})
-	return file_mux_proto_rawDescData
+	return file_proto_mux_proto_rawDescData
 }
 
-var file_mux_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
-var file_mux_proto_goTypes = []any{
-	(*Frame)(nil),          // 0: mux.Frame
-	(*Hello)(nil),          // 1: mux.Hello
-	(*OpenRequest)(nil),    // 2: mux.OpenRequest
-	(*OpenOk)(nil),         // 3: mux.OpenOk
-	(*OpenError)(nil),      // 4: mux.OpenError
-	(*Data)(nil),           // 5: mux.Data
-	(*Resize)(nil),         // 6: mux.Resize
-	(*Close)(nil),          // 7: mux.Close
-	(*Ping)(nil),           // 8: mux.Ping
-	(*Pong)(nil),           // 9: mux.Pong
-	(*AutoExec)(nil),       // 10: mux.AutoExec
-	(*FileRequest)(nil),    // 11: mux.FileRequest
-	(*FileStart)(nil),      // 12: mux.FileStart
-	(*FileChunk)(nil),      // 13: mux.FileChunk
-	(*FileDone)(nil),       // 14: mux.FileDone
-	(*ProxyOpen)(nil),      // 15: mux.ProxyOpen
-	(*ProxyOpenOk)(nil),    // 16: mux.ProxyOpenOk
-	(*ProxyOpenError)(nil), // 17: mux.ProxyOpenError
-	(*ProxyData)(nil),      // 18: mux.ProxyData
-	(*ProxyClose)(nil),     // 19: mux.ProxyClose
-	(*FsList)(nil),         // 20: mux.FsList
-	(*FsEntry)(nil),        // 21: mux.FsEntry
-	(*FsListResult)(nil),   // 22: mux.FsListResult
-	(*FsStat)(nil),         // 23: mux.FsStat
-	(*FsStatResult)(nil),   // 24: mux.FsStatResult
+var file_proto_mux_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_proto_mux_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_proto_mux_proto_goTypes = []any{
+	(Feature)(0),           // 0: mux.Feature
+	(*Frame)(nil),          // 1: mux.Frame
+	(*Hello)(nil),          // 2: mux.Hello
+	(*OpenRequest)(nil),    // 3: mux.OpenRequest
+	(*OpenOk)(nil),         // 4: mux.OpenOk
+	(*OpenError)(nil),      // 5: mux.OpenError
+	(*Data)(nil),           // 6: mux.Data
+	(*Resize)(nil),         // 7: mux.Resize
+	(*Close)(nil),          // 8: mux.Close
+	(*Ping)(nil),           // 9: mux.Ping
+	(*Pong)(nil),           // 10: mux.Pong
+	(*AutoExec)(nil),       // 11: mux.AutoExec
+	(*FileRequest)(nil),    // 12: mux.FileRequest
+	(*FileStart)(nil),      // 13: mux.FileStart
+	(*FileChunk)(nil),      // 14: mux.FileChunk
+	(*FileDone)(nil),       // 15: mux.FileDone
+	(*ProxyOpen)(nil),      // 16: mux.ProxyOpen
+	(*ProxyOpenOk)(nil),    // 17: mux.ProxyOpenOk
+	(*ProxyOpenError)(nil), // 18: mux.ProxyOpenError
+	(*ProxyData)(nil),      // 19: mux.ProxyData
+	(*ProxyClose)(nil),     // 20: mux.ProxyClose
+	(*FsList)(nil),         // 21: mux.FsList
+	(*FsEntry)(nil),        // 22: mux.FsEntry
+	(*FsListResult)(nil),   // 23: mux.FsListResult
+	(*FsStat)(nil),         // 24: mux.FsStat
+	(*FsStatResult)(nil),   // 25: mux.FsStatResult
 }
-var file_mux_proto_depIdxs = []int32{
-	1,  // 0: mux.Frame.hello:type_name -> mux.Hello
-	2,  // 1: mux.Frame.open_request:type_name -> mux.OpenRequest
-	3,  // 2: mux.Frame.open_ok:type_name -> mux.OpenOk
-	4,  // 3: mux.Frame.open_error:type_name -> mux.OpenError
-	5,  // 4: mux.Frame.data:type_name -> mux.Data
-	6,  // 5: mux.Frame.resize:type_name -> mux.Resize
-	7,  // 6: mux.Frame.close:type_name -> mux.Close
-	8,  // 7: mux.Frame.ping:type_name -> mux.Ping
-	9,  // 8: mux.Frame.pong:type_name -> mux.Pong
-	10, // 9: mux.Frame.auto_exec:type_name -> mux.AutoExec
-	11, // 10: mux.Frame.file_request:type_name -> mux.FileRequest
-	12, // 11: mux.Frame.file_start:type_name -> mux.FileStart
-	13, // 12: mux.Frame.file_chunk:type_name -> mux.FileChunk
-	14, // 13: mux.Frame.file_done:type_name -> mux.FileDone
-	15, // 14: mux.Frame.proxy_open:type_name -> mux.ProxyOpen
-	16, // 15: mux.Frame.proxy_open_ok:type_name -> mux.ProxyOpenOk
-	17, // 16: mux.Frame.proxy_open_error:type_name -> mux.ProxyOpenError
-	18, // 17: mux.Frame.proxy_data:type_name -> mux.ProxyData
-	19, // 18: mux.Frame.proxy_close:type_name -> mux.ProxyClose
-	20, // 19: mux.Frame.fs_list:type_name -> mux.FsList
-	22, // 20: mux.Frame.fs_list_result:type_name -> mux.FsListResult
-	23, // 21: mux.Frame.fs_stat:type_name -> mux.FsStat
-	24, // 22: mux.Frame.fs_stat_result:type_name -> mux.FsStatResult
-	21, // 23: mux.FsListResult.entries:type_name -> mux.FsEntry
+var file_proto_mux_proto_depIdxs = []int32{
+	2,  // 0: mux.Frame.hello:type_name -> mux.Hello
+	3,  // 1: mux.Frame.open_request:type_name -> mux.OpenRequest
+	4,  // 2: mux.Frame.open_ok:type_name -> mux.OpenOk
+	5,  // 3: mux.Frame.open_error:type_name -> mux.OpenError
+	6,  // 4: mux.Frame.data:type_name -> mux.Data
+	7,  // 5: mux.Frame.resize:type_name -> mux.Resize
+	8,  // 6: mux.Frame.close:type_name -> mux.Close
+	9,  // 7: mux.Frame.ping:type_name -> mux.Ping
+	10, // 8: mux.Frame.pong:type_name -> mux.Pong
+	11, // 9: mux.Frame.auto_exec:type_name -> mux.AutoExec
+	12, // 10: mux.Frame.file_request:type_name -> mux.FileRequest
+	13, // 11: mux.Frame.file_start:type_name -> mux.FileStart
+	14, // 12: mux.Frame.file_chunk:type_name -> mux.FileChunk
+	15, // 13: mux.Frame.file_done:type_name -> mux.FileDone
+	16, // 14: mux.Frame.proxy_open:type_name -> mux.ProxyOpen
+	17, // 15: mux.Frame.proxy_open_ok:type_name -> mux.ProxyOpenOk
+	18, // 16: mux.Frame.proxy_open_error:type_name -> mux.ProxyOpenError
+	19, // 17: mux.Frame.proxy_data:type_name -> mux.ProxyData
+	20, // 18: mux.Frame.proxy_close:type_name -> mux.ProxyClose
+	21, // 19: mux.Frame.fs_list:type_name -> mux.FsList
+	23, // 20: mux.Frame.fs_list_result:type_name -> mux.FsListResult
+	24, // 21: mux.Frame.fs_stat:type_name -> mux.FsStat
+	25, // 22: mux.Frame.fs_stat_result:type_name -> mux.FsStatResult
+	22, // 23: mux.FsListResult.entries:type_name -> mux.FsEntry
 	24, // [24:24] is the sub-list for method output_type
 	24, // [24:24] is the sub-list for method input_type
 	24, // [24:24] is the sub-list for extension type_name
@@ -2058,12 +2138,12 @@ var file_mux_proto_depIdxs = []int32{
 	0,  // [0:24] is the sub-list for field type_name
 }
 
-func init() { file_mux_proto_init() }
-func file_mux_proto_init() {
-	if File_mux_proto != nil {
+func init() { file_proto_mux_proto_init() }
+func file_proto_mux_proto_init() {
+	if File_proto_mux_proto != nil {
 		return
 	}
-	file_mux_proto_msgTypes[0].OneofWrappers = []any{
+	file_proto_mux_proto_msgTypes[0].OneofWrappers = []any{
 		(*Frame_Hello)(nil),
 		(*Frame_OpenRequest)(nil),
 		(*Frame_OpenOk)(nil),
@@ -2092,17 +2172,18 @@ func file_mux_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mux_proto_rawDesc), len(file_mux_proto_rawDesc)),
-			NumEnums:      0,
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_mux_proto_rawDesc), len(file_proto_mux_proto_rawDesc)),
+			NumEnums:      1,
 			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_mux_proto_goTypes,
-		DependencyIndexes: file_mux_proto_depIdxs,
-		MessageInfos:      file_mux_proto_msgTypes,
+		GoTypes:           file_proto_mux_proto_goTypes,
+		DependencyIndexes: file_proto_mux_proto_depIdxs,
+		EnumInfos:         file_proto_mux_proto_enumTypes,
+		MessageInfos:      file_proto_mux_proto_msgTypes,
 	}.Build()
-	File_mux_proto = out.File
-	file_mux_proto_goTypes = nil
-	file_mux_proto_depIdxs = nil
+	File_proto_mux_proto = out.File
+	file_proto_mux_proto_goTypes = nil
+	file_proto_mux_proto_depIdxs = nil
 }
