@@ -28,6 +28,24 @@ const TARGETS = {
   "windows-arm64": { goos: "windows", goarch: "arm64", suffix: ".exe" },
 };
 
+// Sanitize a value for embedding into a Go -ldflags -X key=value argument.
+// Rejects anything containing characters that could break out of the
+// -X flag or inject extra linker flags (spaces, quotes, equals). We use
+// execFile (no shell), so shell metacharacters are inert, but ldflags
+// injection via " -X evil=1" is still possible. Allow only URL/host-safe
+// characters + a few common punctuation marks that show up in tags.
+function sanitizeLdflagValue(v) {
+  const s = String(v || "");
+  // Allow alphanumerics, dots, dashes, underscores, colons, slashes,
+  // question, ampersand, hash, brackets (for IPv6), commas, tildes.
+  // Reject spaces, quotes, equals signs, and anything else that could
+  // split an -X argument or start a new flag.
+  if (!/^[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=-]+$/.test(s)) {
+    throw new Error(`invalid value for ldflag: ${JSON.stringify(s)}`);
+  }
+  return s;
+}
+
 function buildClient(target, serverURL, tags) {
   return new Promise((resolve, reject) => {
     const t = TARGETS[target];
@@ -44,9 +62,9 @@ function buildClient(target, serverURL, tags) {
 
     const ldflags = [
       `-s -w`,
-      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultServerURL=${serverURL || ""}`,
-      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultTags=${tags || ""}`,
-      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultToken=${config.BUILD_TOKEN || ""}`,
+      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultServerURL=${sanitizeLdflagValue(serverURL)}`,
+      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultTags=${sanitizeLdflagValue(tags)}`,
+      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultToken=${sanitizeLdflagValue(config.BUILD_TOKEN)}`,
     ].join(" ");
 
     const env = {
