@@ -44,6 +44,11 @@ class Host {
       arch: this.hello.arch || "",
       tags: this.hello.tags || "",
       channels: this._channels.size,
+      channelList: [...this._channels.entries()].map(([id, ch]) => ({
+        channelId: id,
+        sessionId: ch.session.id,
+        alive: ch.session.alive,
+      })),
       alive: this.alive,
       createdAt: this.createdAt,
     };

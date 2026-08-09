@@ -42,6 +42,7 @@ const app = state({
   buildServer: "",
   buildTags: "",
   building: false,
+  hostDetailsId: null, // which host is shown in the details overlay
 });
 
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
@@ -201,6 +202,18 @@ async function openHostShell(hostId) {
   }).catch(() => {});
 }
 
+function openHostDetails(hostId) {
+  app.hostDetailsId = hostId;
+}
+
+function closeHostDetails() {
+  app.hostDetailsId = null;
+}
+
+function currentHost() {
+  return app.hosts.find((h) => h.id === app.hostDetailsId) || null;
+}
+
 async function loadBuildTargets() {
   try {
     const res = await fetch("/api/build/targets");
@@ -337,7 +350,10 @@ const sessionRow = (s) =>
 const hostRow = (h) =>
   el(
     "div",
-    { class: "session host" },
+    {
+      class: "session host",
+      onclick: () => openHostDetails(h.id),
+    },
     el("span", { class: "dot" }),
     el(
       "div",
@@ -424,6 +440,131 @@ const BuildPanel = () =>
       },
       () => (app.building ? "Building…" : "Download")
     )
+  );
+
+const HostDetails = () =>
+  when(
+    () => app.hostDetailsId !== null,
+    () => {
+      const h = currentHost();
+      if (!h) {
+        app.hostDetailsId = null;
+        return el("div");
+      }
+      const channelSessions = (h.channelList || []).map((c) => {
+        const s = app.sessions.find((s) => s.id === c.sessionId);
+        return { ...c, session: s };
+      });
+      return el(
+        "div",
+        {
+          class: "host-details-overlay",
+          onclick: (e) => {
+            if (e.target.classList.contains("host-details-overlay")) closeHostDetails();
+          },
+        },
+        el(
+          "div",
+          { class: "host-details" },
+          el(
+            "div",
+            { class: "host-details-header" },
+            el(
+              "div",
+              { class: "host-details-title" },
+              el("div", { class: "remote" }, h.label || h.hostname || h.remote),
+              el(
+                "div",
+                { class: "sub" },
+                `${h.username || "?"}@${h.hostname || "?"} · ${h.os}/${h.arch} · ${h.id}`
+              )
+            ),
+            el(
+              "button",
+              {
+                class: "btn micro",
+                onclick: closeHostDetails,
+                title: "Close",
+              },
+              "×"
+            )
+          ),
+          el(
+            "div",
+            { class: "host-details-meta" },
+            kv("Remote", h.remote),
+            kv("Tags", h.tags || "—"),
+            kv("Status", h.alive ? "alive" : "dead"),
+            kv("Channels", `${h.channels || 0}`),
+            kv("Created", new Date(h.createdAt).toLocaleString())
+          ),
+          el(
+            "div",
+            { class: "list-group-label" },
+            el("span", {}, "Channels"),
+            el("span", {}, () => `${channelSessions.length}`)
+          ),
+          when(
+            () => channelSessions.length === 0,
+            () => el("div", { class: "empty" }, "No open channels")
+          ),
+          ...channelSessions.map((c) =>
+            el(
+              "div",
+              {
+                class: "channel-row " + (c.alive ? "" : "dead"),
+                onclick: () => {
+                  if (c.alive && c.sessionId) {
+                    selectSession(c.sessionId);
+                    closeHostDetails();
+                  }
+                },
+              },
+              el("span", { class: "dot" }),
+              el(
+                "div",
+                { class: "meta" },
+                el("div", { class: "remote" }, `ch#${c.channelId} → ${c.sessionId}`),
+                el(
+                  "div",
+                  { class: "sub" },
+                  c.alive ? "alive" : "exited"
+                )
+              ),
+              el(
+                "span",
+                { class: "badge " + (c.alive ? "mux" : "dead") },
+                c.alive ? "mux" : "dead"
+              )
+            )
+          ),
+          el(
+            "div",
+            { class: "host-details-actions" },
+            el(
+              "button",
+              {
+                class: "btn",
+                disabled: () => !h.alive,
+                onclick: () => {
+                  openHostShell(h.id);
+                  closeHostDetails();
+                },
+              },
+              "+ new shell"
+            )
+          )
+        )
+      );
+    }
+  );
+
+const kv = (k, v) =>
+  el(
+    "div",
+    { class: "kv" },
+    el("span", { class: "k" }, k),
+    el("span", { class: "v" }, String(v))
   );
 
 const Sidebar = () =>
@@ -603,7 +744,7 @@ const SidebarBackdrop = () =>
 
 // --- Boot ------------------------------------------------------------------
 mount(document.getElementById("app"), () =>
-  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main())
+  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails())
 );
 
 connectSessionsStream();
