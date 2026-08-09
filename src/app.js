@@ -348,8 +348,9 @@ function buildClientUrl() {
   const t = app.buildTarget || "linux-amd64";
   const s = app.buildServer || "";
   const tg = app.buildTags || "";
-  const q = new URLSearchParams({ target: t, server: s, tags: tg });
-  return `/api/build/client?${q}`;
+  const q = { target: t, server: s };
+  if (tg) q.tags = tg;
+  return `/api/build/client?${new URLSearchParams(q)}`;
 }
 
 async function downloadClient() {
@@ -388,8 +389,9 @@ function badUsbDownloadUrl() {
   const tags = app.badUsbTags || "";
   const proto = location.protocol === "https:" ? "https://" : "http://";
   const host = location.host;
-  const q = new URLSearchParams({ os, arch, tags });
-  return `${proto}${host}/dl?${q}`;
+  const q = { os, arch };
+  if (tags) q.tags = tags;
+  return `${proto}${host}/dl?${new URLSearchParams(q)}`;
 }
 
 function badUsbScript() {
