@@ -106,14 +106,14 @@ app.get(/.*/, (req, res, next) => {
   res.sendFile(path.join(here, "public", "index.html"));
 });
 
-app.listen(config.PORT, config.HOST, () => {
+const server = app.listen(config.PORT, config.HOST, () => {
   console.log(`[http] dashboard + API on http://${config.HOST}:${config.PORT}`);
 });
 
 // Raw socket reverse-shell listeners.
 startTcp();
 startTls();
-startProxy();
+startProxy(server);
 
 if (config.ENABLE_WEBSHELL) {
   console.log(`[web]  webshell transport at /webshell (port ${config.PORT})`);

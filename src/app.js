@@ -14,6 +14,15 @@ function hostHasFeature(host, bit) {
   return Boolean((host.features || 0) & bit);
 }
 
+async function copyText(text, feedback) {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (feedback) feedback();
+  } catch {
+    /* ignore */
+  }
+}
+
 // --- Dracula theme for xterm ------------------------------------------------
 const draculaTheme = {
   background: "#282a36",
@@ -68,6 +77,7 @@ const app = state({
   badUsbCopied: false,
   logEntries: [],
   logWs: null,
+  serverConfig: { proxy_url: "", proxy_enabled: false, proxy_token: "", build_token: "" },
   payloadsOpen: false,
   payloadsCopiedAll: false,
   sessionMenuOpen: false,
@@ -809,17 +819,30 @@ async function loadBuildTargets() {
         app.buildTarget = app.buildTargets[0] || "";
       }
     }
-    const tok = await fetch("/api/build/token");
-    if (tok.ok) {
-      const t = await tok.json();
-      app.buildToken = t.token || "";
-    }
   } catch {
     /* ignore */
   }
   if (!app.buildServer) {
     const proto = location.protocol === "https:" ? "wss://" : "ws://";
     app.buildServer = `${proto}${location.host}/mux`;
+  }
+}
+
+async function loadServerConfig() {
+  try {
+    const res = await fetch("/api/config");
+    if (res.ok) {
+      const cfg = await res.json();
+      app.serverConfig = {
+        proxy_url: cfg.proxy_url || "",
+        proxy_enabled: Boolean(cfg.proxy_enabled),
+        proxy_token: cfg.proxy_token || "",
+        build_token: cfg.build_token || "",
+      };
+      app.buildToken = cfg.build_token || "";
+    }
+  } catch {
+    /* ignore */
   }
 }
 
@@ -1513,11 +1536,60 @@ const HostDetails = () =>
               },
               "+ new shell"
             )
+          ),
+          when(
+            () => app.serverConfig.proxy_enabled && hostHasFeature(h, FEATURE_PROXY),
+            () => ProxyPanel(h)
           )
         )
       );
     }
   );
+
+const ProxyPanel = (h) => {
+  const url = app.serverConfig.proxy_url;
+  const token = app.serverConfig.proxy_token;
+  const auth = `${h.id}:${token}`;
+  const curlExample = `curl -x ${url} -U ${auth} https://example.com`;
+  return el(
+    "div",
+    { class: "proxy-panel" },
+    el("div", { class: "list-group-label" }, el("span", {}, "HTTP proxy")),
+    el(
+      "div",
+      { class: "proxy-row" },
+      el("span", { class: "proxy-label" }, "URL"),
+      el("code", { class: "proxy-value" }, url),
+      el(
+        "button",
+        { class: "btn micro", onclick: () => copyText(url) },
+        "Copy"
+      )
+    ),
+    el(
+      "div",
+      { class: "proxy-row" },
+      el("span", { class: "proxy-label" }, "Basic auth"),
+      el("code", { class: "proxy-value" }, auth),
+      el(
+        "button",
+        { class: "btn micro", onclick: () => copyText(auth) },
+        "Copy"
+      )
+    ),
+    el(
+      "div",
+      { class: "proxy-example" },
+      el("div", { class: "proxy-label" }, "Example"),
+      el("code", {}, curlExample),
+      el(
+        "button",
+        { class: "btn micro", onclick: () => copyText(curlExample) },
+        "Copy"
+      )
+    )
+  );
+};
 
 const FileTransferPanel = (h) => {
   const hostTransfers = app.fileTransfers[h.id] || {};
@@ -2234,5 +2306,6 @@ mount(document.getElementById("app"), () =>
 connectSessionsStream();
 connectLogStream();
 loadBuildTargets();
+loadServerConfig();
 initResizablePanels();
 loadCsrfToken().then(requestNotificationPermission);

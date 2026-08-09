@@ -1165,6 +1165,52 @@ body {
   white-space: nowrap;
 }
 
+/* --- Host proxy panel ------------------------------------------------------ */
+.proxy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proxy-row,
+.proxy-example {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+}
+
+.proxy-example {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.proxy-label {
+  color: var(--d-comment);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 70px;
+}
+
+.proxy-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+.proxy-example code {
+  background: var(--d-bg);
+  border: 1px solid var(--qrp-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  word-break: break-all;
+}
+
 /* --- Payload examples modal ----------------------------------------------- */
 .payload-block {
   display: flex;

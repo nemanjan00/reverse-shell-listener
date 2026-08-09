@@ -2,6 +2,7 @@ import express from "express";
 import { registry } from "../core/registry.js";
 import { hosts } from "../core/hosts.js";
 import { log } from "../core/log.js";
+import config from "../config.js";
 import { getTokenPayload } from "./auth.js";
 import { buildRouter } from "./build.js";
 
@@ -117,6 +118,21 @@ export function restRouter() {
 
   // --- Build (cross-compile Go client from the dashboard) -------------------
   router.use("/build", buildRouter());
+
+  // --- Runtime config exposed to the authenticated dashboard -----------------
+  router.get("/config", (req, res) => {
+    const proto = req.secure || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+    // Use the same host:port the dashboard is accessed on, since the proxy now
+    // shares the API server. Reverse proxies can override via X-Forwarded-Host.
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "";
+    const proxyEnabled = Boolean(config.PROXY_TOKEN);
+    res.json({
+      proxy_url: proxyEnabled && host ? `${proto}://${host}` : "",
+      proxy_enabled: proxyEnabled,
+      proxy_token: config.PROXY_TOKEN || "",
+      build_token: config.BUILD_TOKEN || "",
+    });
+  });
 
   // --- Log (in-memory event log) --------------------------------------------
   router.get("/log", (req, res) => {
