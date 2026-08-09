@@ -1082,6 +1082,89 @@ body {
   white-space: nowrap;
 }
 
+/* --- File manager ---------------------------------------------------------- */
+.file-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.file-manager-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-manager-path {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.file-manager-path span {
+  color: var(--d-comment);
+  font-family: var(--qrp-font);
+}
+
+.file-manager-error {
+  color: var(--d-red);
+  font-size: 12px;
+}
+
+.file-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--qrp-border);
+  border-radius: 8px;
+  padding: 6px;
+  background: var(--d-bg);
+}
+
+.file-manager-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s ease;
+}
+
+.file-manager-row:hover {
+  background: var(--d-current);
+}
+
+.file-manager-row.dir {
+  color: var(--d-cyan);
+}
+
+.file-manager-row.file {
+  color: var(--d-fg);
+}
+
+.file-manager-icon {
+  flex: none;
+}
+
+.file-manager-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.file-manager-size {
+  color: var(--d-comment);
+  white-space: nowrap;
+}
+
 /* --- Payload examples modal ----------------------------------------------- */
 .payload-block {
   display: flex;

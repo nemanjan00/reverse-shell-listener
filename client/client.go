@@ -266,7 +266,55 @@ func (c *Client) handleFrame(ctx context.Context, frame *muxpb.Frame) {
 		c.proxyData(v.ProxyData)
 	case *muxpb.Frame_ProxyClose:
 		c.proxyClose(v.ProxyClose)
+	case *muxpb.Frame_FsList:
+		go c.fsList(v.FsList)
+	case *muxpb.Frame_FsStat:
+		go c.fsStat(v.FsStat)
 	}
+}
+
+// --- File-system browser ----------------------------------------------------
+// Uses Go's os package directly; no shell commands or output parsing.
+
+func (c *Client) fsList(req *muxpb.FsList) {
+	entries, err := os.ReadDir(req.Path)
+	result := &muxpb.FsListResult{RequestId: req.RequestId}
+	if err != nil {
+		result.Error = err.Error()
+	} else {
+		for _, e := range entries {
+			info, err := e.Info()
+			entry := &muxpb.FsEntry{Name: e.Name(), IsDir: e.IsDir()}
+			if err == nil {
+				entry.Size = uint64(info.Size())
+				entry.ModTime = info.ModTime().UnixMilli()
+			}
+			result.Entries = append(result.Entries, entry)
+		}
+	}
+	_ = c.write(&muxpb.Frame{
+		Kind: &muxpb.Frame_FsListResult{FsListResult: result},
+	})
+}
+
+func (c *Client) fsStat(req *muxpb.FsStat) {
+	result := &muxpb.FsStatResult{RequestId: req.RequestId}
+	info, err := os.Stat(req.Path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			result.Exists = false
+		} else {
+			result.Error = err.Error()
+		}
+	} else {
+		result.Exists = true
+		result.IsDir = info.IsDir()
+		result.Size = uint64(info.Size())
+		result.ModTime = info.ModTime().UnixMilli()
+	}
+	_ = c.write(&muxpb.Frame{
+		Kind: &muxpb.Frame_FsStatResult{FsStatResult: result},
+	})
 }
 
 // --- Proxy tunnels ---------------------------------------------------------

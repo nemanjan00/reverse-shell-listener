@@ -68,6 +68,9 @@ const app = state({
   fileTransfers: {}, // hostId -> { transferId -> { kind, path, progress, total, error, done } }
   hostUploadPath: {},
   hostDownloadPath: {},
+  fsPaths: {}, // hostId -> current directory path
+  fsEntries: {}, // hostId -> { entries: [], loading, error }
+  fsSockets: {}, // hostId -> WebSocket
   sidebarWidth: null,
   logHeight: null,
 });
@@ -655,6 +658,97 @@ function base64ToArrayBuffer(str) {
   return bytes.buffer;
 }
 
+// --- Host file-system browser -----------------------------------------------
+// Uses the Go client's native os package (no shell parsing). Listings and
+// stat results flow over a dedicated WebSocket as JSON.
+
+function getFsPath(hostId) {
+  return app.fsPaths[hostId] || ".";
+}
+
+function setFsPath(hostId, path) {
+  app.fsPaths = { ...app.fsPaths, [hostId]: path };
+}
+
+function getFsEntries(hostId) {
+  return app.fsEntries[hostId] || { entries: [], loading: false, error: "" };
+}
+
+function setFsEntries(hostId, patch) {
+  app.fsEntries = {
+    ...app.fsEntries,
+    [hostId]: { ...(app.fsEntries[hostId] || { entries: [], loading: false, error: "" }), ...patch },
+  };
+}
+
+function connectFsSocket(hostId) {
+  if (app.fsSockets[hostId]) return app.fsSockets[hostId];
+  const ws = new WebSocket(wsUrl("/api/ws/host/" + hostId + "/fs"));
+  app.fsSockets = { ...app.fsSockets, [hostId]: ws };
+
+  ws.onmessage = (ev) => {
+    let msg;
+    try {
+      msg = JSON.parse(ev.data);
+    } catch {
+      return;
+    }
+    if (msg.type === "fs_list_result") {
+      if (msg.error) {
+        setFsEntries(hostId, { loading: false, error: msg.error });
+      } else {
+        const entries = (msg.entries || []).sort((a, b) => {
+          if (a.is_dir === b.is_dir) return a.name.localeCompare(b.name);
+          return a.is_dir ? -1 : 1;
+        });
+        setFsEntries(hostId, { entries, loading: false, error: "" });
+      }
+    }
+  };
+
+  ws.onclose = () => {
+    const current = app.fsSockets[hostId];
+    if (current === ws) {
+      app.fsSockets = { ...app.fsSockets, [hostId]: null };
+    }
+    setTimeout(() => connectFsSocket(hostId), 1500);
+  };
+
+  return ws;
+}
+
+function fsList(hostId, path) {
+  const ws = connectFsSocket(hostId);
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    setTimeout(() => fsList(hostId, path), 100);
+    return;
+  }
+  setFsPath(hostId, path);
+  setFsEntries(hostId, { loading: true, error: "", entries: [] });
+  ws.send(JSON.stringify({ type: "fs_list", request_id: Date.now(), path }));
+}
+
+function fsNavigate(hostId, name) {
+  const current = getFsPath(hostId);
+  const sep = current.includes("\\") ? "\\" : "/";
+  const next = current === "." ? name : current + sep + name;
+  fsList(hostId, next);
+}
+
+function fsUp(hostId) {
+  const current = getFsPath(hostId);
+  if (current === "." || current === "/" || /^[A-Za-z]:\\$/.test(current)) {
+    return;
+  }
+  const sep = current.includes("\\") ? "\\" : "/";
+  const idx = current.lastIndexOf(sep);
+  if (idx <= 0) {
+    fsList(hostId, ".");
+  } else {
+    fsList(hostId, current.slice(0, idx));
+  }
+}
+
 function upgradeCurrent() {
   const c = current();
   if (!c) return;
@@ -678,6 +772,11 @@ async function openHostShell(hostId) {
 
 function openHostDetails(hostId) {
   app.hostDetailsId = hostId;
+  // Warm up the file-system browser socket and load the current directory.
+  const current = getFsPath(hostId);
+  if (!app.fsSockets[hostId]) {
+    fsList(hostId, current);
+  }
 }
 
 function closeHostDetails() {
@@ -1378,6 +1477,7 @@ const HostDetails = () =>
               )
             )
           ),
+          FileManagerPanel(h),
           FileTransferPanel(h),
           el(
             "div",
@@ -1499,6 +1599,101 @@ const FileTransferPanel = (h) => {
     )
   );
 };
+
+const FileManagerPanel = (h) => {
+  const state = () => getFsEntries(h.id);
+  const path = () => getFsPath(h.id);
+  return el(
+    "div",
+    { class: "file-manager" },
+    el("div", { class: "list-group-label" }, el("span", {}, "File manager")),
+    when(
+      () => !h.alive,
+      () => el("div", { class: "empty" }, "Host is offline")
+    ),
+    when(
+      () => h.alive,
+      () =>
+        el(
+          "div",
+          { class: "file-manager-body" },
+          el(
+            "div",
+            { class: "file-manager-path" },
+            el(
+              "button",
+              {
+                class: "btn micro",
+                onclick: () => fsUp(h.id),
+                disabled: () => path() === "." || path() === "/",
+              },
+              "Up"
+            ),
+            el("span", {}, path)
+          ),
+          when(
+            () => state().loading,
+            () => el("div", { class: "empty" }, "Loading…")
+          ),
+          when(
+            () => state().error,
+            () => el("div", { class: "file-manager-error" }, state().error)
+          ),
+          when(
+            () => !state().loading && state().entries.length === 0 && !state().error,
+            () => el("div", { class: "empty" }, "Empty directory")
+          ),
+          el(
+            "div",
+            { class: "file-manager-list" },
+            list(
+              () => state().entries,
+              (e) => e.name,
+              (e) =>
+                el(
+                  "div",
+                  {
+                    class: "file-manager-row " + (e.is_dir ? "dir" : "file"),
+                    onclick: () => {
+                      if (e.is_dir) {
+                        fsNavigate(h.id, e.name);
+                      } else {
+                        const sep = path().includes("\\") ? "\\" : "/";
+                        const filePath = path() === "." ? e.name : path() + sep + e.name;
+                        downloadFileFromHost(h.id, filePath);
+                      }
+                    },
+                  },
+                  el("span", { class: "file-manager-icon" }, e.is_dir ? "📁" : "📄"),
+                  el("span", { class: "file-manager-name" }, e.name),
+                  when(
+                    () => !e.is_dir,
+                    () => el("span", { class: "file-manager-size" }, formatBytes(e.size))
+                  )
+                )
+            )
+          ),
+          el(
+            "button",
+            {
+              class: "btn micro",
+              onclick: () => fsList(h.id, path()),
+            },
+            "Refresh"
+          )
+        )
+    )
+  );
+};
+
+function formatBytes(n) {
+  if (n === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log10(n) / 3);
+  const unit = units[Math.min(i, units.length - 1)];
+  const value = n / Math.pow(1024, i);
+  return value.toFixed(value >= 100 ? 0 : 1) + " " + unit;
+}
 
 const kv = (k, v) =>
   el(

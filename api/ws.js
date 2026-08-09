@@ -40,6 +40,22 @@ function jsonToFileFrame(msg) {
   }
 }
 
+function jsonToFsFrame(msg) {
+  if (!msg || !msg.type || typeof msg.request_id !== "number") return null;
+  switch (msg.type) {
+    case "fs_list":
+      return {
+        fsList: { requestId: msg.request_id, path: String(msg.path || ".") },
+      };
+    case "fs_stat":
+      return {
+        fsStat: { requestId: msg.request_id, path: String(msg.path || ".") },
+      };
+    default:
+      return null;
+  }
+}
+
 // WebSocket endpoints, registered on the shared express-ws app:
 //   /api/ws/sessions       session-list event stream (JSON)
 //   /api/ws/session/:id    one session's terminal channel (binary bytes +
@@ -196,6 +212,39 @@ export function registerWs(app) {
     });
 
     ws.on("close", () => host._fileSockets.delete(ws));
+  });
+
+  // --- file-system browser relay --------------------------------------------
+  // Dashboard opens this host-scoped WebSocket to list/stat directories using
+  // the Go client's native os package. JSON on the wire, protobuf to the host.
+  app.ws("/api/ws/host/:id/fs", (ws, req) => {
+    if (!authorized(req)) {
+      ws.close(1008, "unauthorized");
+      return;
+    }
+    const host = hosts.get(req.params.id);
+    if (!host || !host.alive) {
+      ws.close(1008, "no such host");
+      return;
+    }
+
+    ws.binaryType = "arraybuffer";
+    host.addFsSocket(ws);
+
+    ws.on("message", (data, isBinary) => {
+      let msg;
+      try {
+        const text = typeof data === "string" ? data : data.toString();
+        msg = JSON.parse(text);
+      } catch {
+        return;
+      }
+      const frame = jsonToFsFrame(msg);
+      if (!frame) return;
+      host.send(frame);
+    });
+
+    ws.on("close", () => host._fsSockets.delete(ws));
   });
 
   // --- event log stream -----------------------------------------------------

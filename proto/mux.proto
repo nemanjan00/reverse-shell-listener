@@ -41,6 +41,10 @@ message Frame {
     ProxyOpenError proxy_open_error = 19; // client -> server: tunnel open failed
     ProxyData      proxy_data       = 16; // both: raw tunnel bytes
     ProxyClose     proxy_close      = 17; // both: tunnel ended
+    FsList         fs_list          = 20; // server -> client: list directory
+    FsListResult   fs_list_result   = 21; // client -> server: directory listing
+    FsStat         fs_stat          = 22; // server -> client: stat path
+    FsStatResult   fs_stat_result   = 23; // client -> server: stat result
   }
 }
 
@@ -164,4 +168,41 @@ message ProxyData {
 message ProxyClose {
   uint32 proxy_id = 1;
   string reason   = 2;
+}
+
+// Server asks the client to list a directory's contents.
+message FsList {
+  uint32 request_id = 1;
+  string path       = 2;
+}
+
+// One entry in a directory listing.
+message FsEntry {
+  string name     = 1;
+  bool   is_dir   = 2;
+  uint64 size     = 3;
+  int64  mod_time = 4;  // Unix milliseconds
+}
+
+// Client returns the result of FsList.
+message FsListResult {
+  uint32    request_id = 1;
+  string    error      = 2;  // empty on success
+  repeated  FsEntry entries = 3;
+}
+
+// Server asks the client to stat a path.
+message FsStat {
+  uint32 request_id = 1;
+  string path       = 2;
+}
+
+// Client returns the result of FsStat.
+message FsStatResult {
+  uint32 request_id = 1;
+  string error      = 2;  // empty on success
+  bool   exists     = 3;
+  bool   is_dir     = 4;
+  uint64 size       = 5;
+  int64  mod_time   = 6;  // Unix milliseconds
 }

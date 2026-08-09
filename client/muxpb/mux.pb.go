@@ -44,6 +44,10 @@ type Frame struct {
 	//	*Frame_ProxyOpenError
 	//	*Frame_ProxyData
 	//	*Frame_ProxyClose
+	//	*Frame_FsList
+	//	*Frame_FsListResult
+	//	*Frame_FsStat
+	//	*Frame_FsStatResult
 	Kind          isFrame_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -257,6 +261,42 @@ func (x *Frame) GetProxyClose() *ProxyClose {
 	return nil
 }
 
+func (x *Frame) GetFsList() *FsList {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_FsList); ok {
+			return x.FsList
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetFsListResult() *FsListResult {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_FsListResult); ok {
+			return x.FsListResult
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetFsStat() *FsStat {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_FsStat); ok {
+			return x.FsStat
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetFsStatResult() *FsStatResult {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_FsStatResult); ok {
+			return x.FsStatResult
+		}
+	}
+	return nil
+}
+
 type isFrame_Kind interface {
 	isFrame_Kind()
 }
@@ -337,6 +377,22 @@ type Frame_ProxyClose struct {
 	ProxyClose *ProxyClose `protobuf:"bytes,17,opt,name=proxy_close,json=proxyClose,proto3,oneof"` // both: tunnel ended
 }
 
+type Frame_FsList struct {
+	FsList *FsList `protobuf:"bytes,20,opt,name=fs_list,json=fsList,proto3,oneof"` // server -> client: list directory
+}
+
+type Frame_FsListResult struct {
+	FsListResult *FsListResult `protobuf:"bytes,21,opt,name=fs_list_result,json=fsListResult,proto3,oneof"` // client -> server: directory listing
+}
+
+type Frame_FsStat struct {
+	FsStat *FsStat `protobuf:"bytes,22,opt,name=fs_stat,json=fsStat,proto3,oneof"` // server -> client: stat path
+}
+
+type Frame_FsStatResult struct {
+	FsStatResult *FsStatResult `protobuf:"bytes,23,opt,name=fs_stat_result,json=fsStatResult,proto3,oneof"` // client -> server: stat result
+}
+
 func (*Frame_Hello) isFrame_Kind() {}
 
 func (*Frame_OpenRequest) isFrame_Kind() {}
@@ -374,6 +430,14 @@ func (*Frame_ProxyOpenError) isFrame_Kind() {}
 func (*Frame_ProxyData) isFrame_Kind() {}
 
 func (*Frame_ProxyClose) isFrame_Kind() {}
+
+func (*Frame_FsList) isFrame_Kind() {}
+
+func (*Frame_FsListResult) isFrame_Kind() {}
+
+func (*Frame_FsStat) isFrame_Kind() {}
+
+func (*Frame_FsStatResult) isFrame_Kind() {}
 
 // Sent once, immediately after the socket opens, so the operator sees who
 // called home. The token field authenticates the client against the server's
@@ -1458,11 +1522,332 @@ func (x *ProxyClose) GetReason() string {
 	return ""
 }
 
+// Server asks the client to list a directory's contents.
+type FsList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     uint32                 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FsList) Reset() {
+	*x = FsList{}
+	mi := &file_mux_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FsList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FsList) ProtoMessage() {}
+
+func (x *FsList) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FsList.ProtoReflect.Descriptor instead.
+func (*FsList) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *FsList) GetRequestId() uint32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+func (x *FsList) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// One entry in a directory listing.
+type FsEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	IsDir         bool                   `protobuf:"varint,2,opt,name=is_dir,json=isDir,proto3" json:"is_dir,omitempty"`
+	Size          uint64                 `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
+	ModTime       int64                  `protobuf:"varint,4,opt,name=mod_time,json=modTime,proto3" json:"mod_time,omitempty"` // Unix milliseconds
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FsEntry) Reset() {
+	*x = FsEntry{}
+	mi := &file_mux_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FsEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FsEntry) ProtoMessage() {}
+
+func (x *FsEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FsEntry.ProtoReflect.Descriptor instead.
+func (*FsEntry) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *FsEntry) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FsEntry) GetIsDir() bool {
+	if x != nil {
+		return x.IsDir
+	}
+	return false
+}
+
+func (x *FsEntry) GetSize() uint64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *FsEntry) GetModTime() int64 {
+	if x != nil {
+		return x.ModTime
+	}
+	return 0
+}
+
+// Client returns the result of FsList.
+type FsListResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     uint32                 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"` // empty on success
+	Entries       []*FsEntry             `protobuf:"bytes,3,rep,name=entries,proto3" json:"entries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FsListResult) Reset() {
+	*x = FsListResult{}
+	mi := &file_mux_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FsListResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FsListResult) ProtoMessage() {}
+
+func (x *FsListResult) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FsListResult.ProtoReflect.Descriptor instead.
+func (*FsListResult) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *FsListResult) GetRequestId() uint32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+func (x *FsListResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *FsListResult) GetEntries() []*FsEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+// Server asks the client to stat a path.
+type FsStat struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     uint32                 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FsStat) Reset() {
+	*x = FsStat{}
+	mi := &file_mux_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FsStat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FsStat) ProtoMessage() {}
+
+func (x *FsStat) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FsStat.ProtoReflect.Descriptor instead.
+func (*FsStat) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *FsStat) GetRequestId() uint32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+func (x *FsStat) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// Client returns the result of FsStat.
+type FsStatResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     uint32                 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"` // empty on success
+	Exists        bool                   `protobuf:"varint,3,opt,name=exists,proto3" json:"exists,omitempty"`
+	IsDir         bool                   `protobuf:"varint,4,opt,name=is_dir,json=isDir,proto3" json:"is_dir,omitempty"`
+	Size          uint64                 `protobuf:"varint,5,opt,name=size,proto3" json:"size,omitempty"`
+	ModTime       int64                  `protobuf:"varint,6,opt,name=mod_time,json=modTime,proto3" json:"mod_time,omitempty"` // Unix milliseconds
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FsStatResult) Reset() {
+	*x = FsStatResult{}
+	mi := &file_mux_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FsStatResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FsStatResult) ProtoMessage() {}
+
+func (x *FsStatResult) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FsStatResult.ProtoReflect.Descriptor instead.
+func (*FsStatResult) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *FsStatResult) GetRequestId() uint32 {
+	if x != nil {
+		return x.RequestId
+	}
+	return 0
+}
+
+func (x *FsStatResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *FsStatResult) GetExists() bool {
+	if x != nil {
+		return x.Exists
+	}
+	return false
+}
+
+func (x *FsStatResult) GetIsDir() bool {
+	if x != nil {
+		return x.IsDir
+	}
+	return false
+}
+
+func (x *FsStatResult) GetSize() uint64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *FsStatResult) GetModTime() int64 {
+	if x != nil {
+		return x.ModTime
+	}
+	return 0
+}
+
 var File_mux_proto protoreflect.FileDescriptor
 
 const file_mux_proto_rawDesc = "" +
 	"\n" +
-	"\tmux.proto\x12\x03mux\"\xf5\x06\n" +
+	"\tmux.proto\x12\x03mux\"\xbb\b\n" +
 	"\x05Frame\x12\"\n" +
 	"\x05hello\x18\x01 \x01(\v2\n" +
 	".mux.HelloH\x00R\x05hello\x125\n" +
@@ -1491,7 +1876,11 @@ const file_mux_proto_rawDesc = "" +
 	"\n" +
 	"proxy_data\x18\x10 \x01(\v2\x0e.mux.ProxyDataH\x00R\tproxyData\x122\n" +
 	"\vproxy_close\x18\x11 \x01(\v2\x0f.mux.ProxyCloseH\x00R\n" +
-	"proxyCloseB\x06\n" +
+	"proxyClose\x12&\n" +
+	"\afs_list\x18\x14 \x01(\v2\v.mux.FsListH\x00R\x06fsList\x129\n" +
+	"\x0efs_list_result\x18\x15 \x01(\v2\x11.mux.FsListResultH\x00R\ffsListResult\x12&\n" +
+	"\afs_stat\x18\x16 \x01(\v2\v.mux.FsStatH\x00R\x06fsStat\x129\n" +
+	"\x0efs_stat_result\x18\x17 \x01(\v2\x11.mux.FsStatResultH\x00R\ffsStatResultB\x06\n" +
 	"\x04kind\"\xa7\x01\n" +
 	"\x05Hello\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x1a\n" +
@@ -1569,7 +1958,33 @@ const file_mux_proto_rawDesc = "" +
 	"\n" +
 	"ProxyClose\x12\x19\n" +
 	"\bproxy_id\x18\x01 \x01(\rR\aproxyId\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reasonB;Z9github.com/nemanjan00/reverse-shell-listener/client/muxpbb\x06proto3"
+	"\x06reason\x18\x02 \x01(\tR\x06reason\";\n" +
+	"\x06FsList\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\rR\trequestId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"c\n" +
+	"\aFsEntry\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x15\n" +
+	"\x06is_dir\x18\x02 \x01(\bR\x05isDir\x12\x12\n" +
+	"\x04size\x18\x03 \x01(\x04R\x04size\x12\x19\n" +
+	"\bmod_time\x18\x04 \x01(\x03R\amodTime\"k\n" +
+	"\fFsListResult\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\rR\trequestId\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12&\n" +
+	"\aentries\x18\x03 \x03(\v2\f.mux.FsEntryR\aentries\";\n" +
+	"\x06FsStat\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\rR\trequestId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\xa1\x01\n" +
+	"\fFsStatResult\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\rR\trequestId\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x16\n" +
+	"\x06exists\x18\x03 \x01(\bR\x06exists\x12\x15\n" +
+	"\x06is_dir\x18\x04 \x01(\bR\x05isDir\x12\x12\n" +
+	"\x04size\x18\x05 \x01(\x04R\x04size\x12\x19\n" +
+	"\bmod_time\x18\x06 \x01(\x03R\amodTimeB;Z9github.com/nemanjan00/reverse-shell-listener/client/muxpbb\x06proto3"
 
 var (
 	file_mux_proto_rawDescOnce sync.Once
@@ -1583,7 +1998,7 @@ func file_mux_proto_rawDescGZIP() []byte {
 	return file_mux_proto_rawDescData
 }
 
-var file_mux_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_mux_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_mux_proto_goTypes = []any{
 	(*Frame)(nil),          // 0: mux.Frame
 	(*Hello)(nil),          // 1: mux.Hello
@@ -1605,6 +2020,11 @@ var file_mux_proto_goTypes = []any{
 	(*ProxyOpenError)(nil), // 17: mux.ProxyOpenError
 	(*ProxyData)(nil),      // 18: mux.ProxyData
 	(*ProxyClose)(nil),     // 19: mux.ProxyClose
+	(*FsList)(nil),         // 20: mux.FsList
+	(*FsEntry)(nil),        // 21: mux.FsEntry
+	(*FsListResult)(nil),   // 22: mux.FsListResult
+	(*FsStat)(nil),         // 23: mux.FsStat
+	(*FsStatResult)(nil),   // 24: mux.FsStatResult
 }
 var file_mux_proto_depIdxs = []int32{
 	1,  // 0: mux.Frame.hello:type_name -> mux.Hello
@@ -1626,11 +2046,16 @@ var file_mux_proto_depIdxs = []int32{
 	17, // 16: mux.Frame.proxy_open_error:type_name -> mux.ProxyOpenError
 	18, // 17: mux.Frame.proxy_data:type_name -> mux.ProxyData
 	19, // 18: mux.Frame.proxy_close:type_name -> mux.ProxyClose
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	20, // 19: mux.Frame.fs_list:type_name -> mux.FsList
+	22, // 20: mux.Frame.fs_list_result:type_name -> mux.FsListResult
+	23, // 21: mux.Frame.fs_stat:type_name -> mux.FsStat
+	24, // 22: mux.Frame.fs_stat_result:type_name -> mux.FsStatResult
+	21, // 23: mux.FsListResult.entries:type_name -> mux.FsEntry
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_mux_proto_init() }
@@ -1658,6 +2083,10 @@ func file_mux_proto_init() {
 		(*Frame_ProxyOpenError)(nil),
 		(*Frame_ProxyData)(nil),
 		(*Frame_ProxyClose)(nil),
+		(*Frame_FsList)(nil),
+		(*Frame_FsListResult)(nil),
+		(*Frame_FsStat)(nil),
+		(*Frame_FsStatResult)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1665,7 +2094,7 @@ func file_mux_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mux_proto_rawDesc), len(file_mux_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -57,6 +57,35 @@ function frameToJson(frame) {
   return {};
 }
 
+// Convert a protobuf Fs* frame into a JSON payload for dashboard sockets.
+function fsFrameToJson(frame) {
+  if (frame.fsListResult) {
+    return {
+      type: "fs_list_result",
+      request_id: frame.fsListResult.requestId,
+      error: frame.fsListResult.error || "",
+      entries: (frame.fsListResult.entries || []).map((e) => ({
+        name: e.name,
+        is_dir: e.isDir,
+        size: Number(e.size) || 0,
+        mod_time: Number(e.modTime) || 0,
+      })),
+    };
+  }
+  if (frame.fsStatResult) {
+    return {
+      type: "fs_stat_result",
+      request_id: frame.fsStatResult.requestId,
+      error: frame.fsStatResult.error || "",
+      exists: frame.fsStatResult.exists,
+      is_dir: frame.fsStatResult.isDir,
+      size: Number(frame.fsStatResult.size) || 0,
+      mod_time: Number(frame.fsStatResult.modTime) || 0,
+    };
+  }
+  return null;
+}
+
 // Read the autoexec script for a given os, if any. Returns null if no file.
 function readAutoExec(osName) {
   if (!osName) return null;
@@ -88,6 +117,25 @@ class Host {
     this._fileSockets = new Set(); // dashboard WebSockets for file transfer
     this._proxySeq = 0;
     this._proxyHandlers = new Map(); // proxyId -> { onData(data), onClose(reason) }
+    this._fsSockets = new Set(); // dashboard WebSockets for fs browser
+  }
+
+  addFsSocket(ws) {
+    this._fsSockets.add(ws);
+    ws.on("close", () => this._fsSockets.delete(ws));
+  }
+
+  sendFsFrame(frame) {
+    const obj = fsFrameToJson(frame);
+    if (!obj) return;
+    for (const ws of this._fsSockets) {
+      if (ws.readyState !== 1) continue;
+      try {
+        ws.send(JSON.stringify(obj));
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   // Open a TCP proxy tunnel through this host. Returns the allocated proxyId.
@@ -254,6 +302,14 @@ class Host {
       handler.onClose();
     }
     this._proxyHandlers.clear();
+    for (const ws of this._fsSockets) {
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    this._fsSockets.clear();
   }
 }
 
@@ -357,6 +413,10 @@ export function registerMux(app) {
           break;
         case "proxyClose":
           host.onProxyClose(frame.proxyClose.proxyId);
+          break;
+        case "fsListResult":
+        case "fsStatResult":
+          host.sendFsFrame(frame);
           break;
         default:
           break;
