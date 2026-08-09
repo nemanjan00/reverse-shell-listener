@@ -1,8 +1,14 @@
-# CLAUDE.md
+# reverse-shell-listener — developer notes
 
-Project: reverse-shell-listener. A single-host, multi-transport reverse-shell
-catcher with a browser dashboard. Node 22 ESM + Express 5 + express-ws on the
-server, qrp + xterm.js in the browser, a Go client for the mux transport.
+A single-host, multi-transport reverse-shell catcher with a browser dashboard.
+
+**Stack:** Node 22 ESM + Express 5 + express-ws on the server, qrp + xterm.js
+in the browser, Go client for the mux transport.
+
+**Key capabilities:** raw TCP / TLS / HTTP webshell / mux transports, browser
+PTY dashboard, per-host file transfer + file manager, HTTP CONNECT proxy,
+BadUSB/DuckyScript generator, client cross-compile panel, live event log, and
+CSRF-protected session auth.
 
 ## Layout
 

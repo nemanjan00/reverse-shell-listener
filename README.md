@@ -38,32 +38,28 @@ flowchart LR
     E --> J
 ```
 
-- **Transports:**
-  - raw TCP reverse-shell listener
-  - TLS reverse-shell listener
-  - HTTP webshell beacon transport
-  - multiplexed WebSocket/protobuf implant protocol with a Go client
-- **Dashboard:**
-  - live session list with a full PTY terminal (resize + mouse support)
-  - per-host file transfer (upload + download) and native file-system browser
-  - HTTP CONNECT proxy controls per mux host
-  - BadUSB / DuckyScript generator with OS/arch target, device selector
-    (Flipper Zero or USB Rubber Ducky), Apple VID/PID spoofing for macOS,
-    and pre-payload delay
-  - copyable payload examples (raw TCP, TLS, webshell, mux)
-  - command palette (`Ctrl+K`) to jump to hosts/sessions
-  - browser notifications for new sessions
-  - one-click offline-session cleanup
-  - session scrollback download
-  - live in-memory event log
-  - keyboard help overlay (`?`)
-  - resizable sidebar and log panels
-- **Auth:** session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
-- **Build panel:** cross-compile the Go mux client from the dashboard with the server URL baked in — supports linux/darwin/windows × amd64/arm64, plus armv7 (Luckfox/Shark Jack) and mipsle soft-float (MT7628).
+## ✨ Features
+
+| | |
+|---|---|
+| 🌐 **Multi-transport** | Raw TCP · TLS · HTTP webshell · multiplexed WebSocket/protobuf Go client |
+| 🖥️ **Dashboard** | Live sessions, full PTY terminal with resize + mouse support |
+| 📁 **File tools** | Per-host file transfer, native file-system browser, streaming upload/download |
+| 🌐 **HTTP CONNECT proxy** | Per-mux-host proxy with Basic auth (great for pivoting) |
+| ⌨️ **BadUSB generator** | DuckyScript payload builder with device selector and macOS VID/PID spoofing |
+| 📋 **Payload library** | Copyable one-liners for TCP, TLS, webshell, mux, and download-&-run |
+| ⚡ **Command palette** | `Ctrl+K` to jump between hosts and sessions |
+| 🔔 **Notifications** | Browser notifications for new sessions |
+| 🧹 **Housekeeping** | One-click cleanup of dead sessions, scrollback download |
+| 📜 **Live log** | In-memory event log replayed on load and streamed over WebSocket |
+| 🎹 **Keyboard help** | Press `?` for the shortcut overlay |
+| 🔧 **Resizable UI** | Drag to resize sidebar and log panels |
+| 🔐 **Auth + CSRF** | Session-cookie login protecting dashboard, REST API, and browser WebSockets |
+| 🏗️ **Build panel** | Cross-compile the Go mux client from the dashboard with the server URL baked in |
 
 ![Screenshot](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/screenshot.png)
 
-## Quick start
+## 🚀 Quick start
 
 ```bash
 npm install
@@ -73,7 +69,7 @@ AUTH_USER=admin AUTH_PASS=s3cr3t npm start
 
 Then browse to `http://localhost:8080`. `AUTH_USER` / `AUTH_PASS` are required.
 
-## Docker
+## 🐳 Docker
 
 ```bash
 docker build -t reverse-shell-listener .
@@ -89,39 +85,39 @@ The image bundles the frontend, the Node server, and the Go mux client
 (`rsl-client` is on `$PATH` inside the container). The TLS transport
 auto-generates a self-signed cert on first start using the bundled `openssl`.
 
-## Scripts
+## 🛠️ Scripts
 
-| Script       | Description                          |
-|--------------|--------------------------------------|
+| Script | Description |
+|--------|-------------|
 | `npm run build` | Bundle `src/` into `public/dist/` |
-| `npm run watch` | Rebuild on change                |
-| `npm start`     | Build + run the listener         |
-| `npm run dev`   | Build + run with node --watch    |
+| `npm run watch` | Rebuild on change |
+| `npm start` | Build + run the listener |
+| `npm run dev` | Build + run with node --watch |
 
-## Configuration (env vars)
+## ⚙️ Configuration (env vars)
 
-| Variable            | Default | Description                                      |
-|---------------------|---------|--------------------------------------------------|
-| `PORT`              | 8080    | HTTP dashboard + REST + WebSocket + webshell    |
-| `HOST`              | 0.0.0.0 | Bind address                                     |
-| `TCP_PORT`          | 1337    | Raw TCP reverse-shell listener                   |
-| `TLS_PORT`          | 1338    | TLS reverse-shell listener                       |
-| `ENABLE_TCP`        | true    |                                                  |
-| `ENABLE_TLS`        | true    |                                                  |
-| `ENABLE_WEBSHELL`   | true    |                                                  |
-| `ENABLE_MUX`        | true    | Multiplexed Go client WebSocket transport        |
-| `AUTH_USER`         |         | **Required.** Dashboard/REST/WS login username    |
-| `AUTH_PASS`         |         | **Required.** Dashboard/REST/WS login password    |
-| `AUTH_SECRET`       | random  | Pin session cookie secret across restarts        |
-| `BUILD_TOKEN`       |         | Shared token for `/mux`, `/dl`, and `/webshell`  |
-| `PROXY_TOKEN`       |         | HTTP CONNECT proxy password (username = host id) |
-| `PROXY_PORT`        | 0       | Dedicated proxy port; 0 shares the API port      |
-| `SCROLLBACK_BYTES`  | 1 MB    | Per-session in-memory scrollback cap             |
-| `WEBSHELL_POLL_MS`  | 25000   | Long-poll hold time                              |
-| `WEBSHELL_TIMEOUT`  | 30000   | Idle timeout before a webshell beacon is dead     |
-| `MUX_PING_MS`       | 20000   | Keepalive ping interval for mux hosts            |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 8080 | HTTP dashboard + REST + WebSocket + webshell |
+| `HOST` | 0.0.0.0 | Bind address |
+| `TCP_PORT` | 1337 | Raw TCP reverse-shell listener |
+| `TLS_PORT` | 1338 | TLS reverse-shell listener |
+| `ENABLE_TCP` | true | |
+| `ENABLE_TLS` | true | |
+| `ENABLE_WEBSHELL` | true | |
+| `ENABLE_MUX` | true | Multiplexed Go client WebSocket transport |
+| `AUTH_USER` | | **Required.** Dashboard/REST/WS login username |
+| `AUTH_PASS` | | **Required.** Dashboard/REST/WS login password |
+| `AUTH_SECRET` | random | Pin session cookie secret across restarts |
+| `BUILD_TOKEN` | | Shared token for `/mux`, `/dl`, and `/webshell` |
+| `PROXY_TOKEN` | | HTTP CONNECT proxy password (username = host id) |
+| `PROXY_PORT` | 0 | Dedicated proxy port; 0 shares the API port |
+| `SCROLLBACK_BYTES` | 1 MB | Per-session in-memory scrollback cap |
+| `WEBSHELL_POLL_MS` | 25000 | Long-poll hold time |
+| `WEBSHELL_TIMEOUT` | 30000 | Idle timeout before a webshell beacon is dead |
+| `MUX_PING_MS` | 20000 | Keepalive ping interval for mux hosts |
 
-## Reverse-shell payloads
+## 💥 Reverse-shell payloads
 
 ### Raw TCP
 
@@ -227,7 +223,7 @@ On macOS the generator defaults to spoofing an Apple keyboard
 The Rubber Ducky output uses `ATTACKMODE HID VID_05AC PID_0281`; the Flipper
 output uses `ID 05ac:0281 Apple:Keyboard`.
 
-## Cross-compiling the Go client manually
+## 🔨 Cross-compiling the Go client manually
 
 ```bash
 cd client
@@ -241,29 +237,29 @@ The client builds for all common OS/arch combinations. On Linux/macOS it uses a
 real PTY; on Windows it falls back to a pipe-backed shell because a portable
 Windows PTY is not included in this build.
 
-## REST API
+## 🔌 REST API
 
-| Endpoint                         | Method | Description                              |
-|----------------------------------|--------|------------------------------------------|
-| `/api/sessions`                  | GET    | List all sessions                        |
-| `/api/sessions/:id`              | GET    | Session metadata                         |
-| `/api/sessions/:id/kill`         | POST   | Close the connection                     |
-| `/api/sessions/:id/upgrade`      | POST   | Inject dumb-shell → PTY bash sequence    |
-| `/api/sessions/:id/resize`       | POST   | Resize session / send SIGWINCH           |
-| `/api/sessions/:id`              | DELETE | Drop session from registry               |
-| `/api/sessions/clear-dead`       | POST   | Drop all offline sessions                 |
-| `/api/build/targets`            | GET    | List available cross-compile targets      |
-| `/api/build/client`             | GET    | Build + download Go client (target, server, tags) |
-| `/api/hosts`                     | GET    | List mux hosts                           |
-| `/api/hosts/:id`                 | GET    | Host metadata                            |
-| `/api/hosts/:id/shells`          | POST   | Ask host to open a new PTY shell         |
-| `/api/config`                    | GET    | Runtime config: proxy URL, tokens        |
-| `/api/log`                       | GET    | In-memory event-log snapshot (`?since=ts`)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/sessions` | GET | List all sessions |
+| `/api/sessions/:id` | GET | Session metadata |
+| `/api/sessions/:id/kill` | POST | Close the connection |
+| `/api/sessions/:id/upgrade` | POST | Inject dumb-shell → PTY bash sequence |
+| `/api/sessions/:id/resize` | POST | Resize session / send SIGWINCH |
+| `/api/sessions/:id` | DELETE | Drop session from registry |
+| `/api/sessions/clear-dead` | POST | Drop all offline sessions |
+| `/api/build/targets` | GET | List available cross-compile targets |
+| `/api/build/client` | GET | Build + download Go client (target, server, tags) |
+| `/api/hosts` | GET | List mux hosts |
+| `/api/hosts/:id` | GET | Host metadata |
+| `/api/hosts/:id/shells` | POST | Ask host to open a new PTY shell |
+| `/api/config` | GET | Runtime config: proxy URL, tokens |
+| `/api/log` | GET | In-memory event-log snapshot (`?since=ts`) |
 
 All mutating endpoints (`POST`, `DELETE`, etc.) require the `X-CSRF-Token`
 header to match the `rsl_csrf` cookie issued at login.
 
-## WebSocket endpoints
+## 📡 WebSocket endpoints
 
 - `/api/ws/sessions` — JSON event stream for the session/host list
 - `/api/ws/session/:id` — binary terminal channel + JSON control frames
@@ -275,7 +271,7 @@ Mux hosts advertise a feature bitmap in their `Hello` message. The dashboard
 uses it to hide controls (file transfer, file manager, proxy) that older
 clients do not support.
 
-## Security
+## 🔒 Security
 
 The dashboard grants shell access to every caught session, so it must not be
 exposed to the public internet even with auth enabled. Run it bound to
@@ -312,7 +308,7 @@ The server also sets `X-Content-Type-Options`, `X-Frame-Options`,
 added only when the request is detected as HTTPS (e.g., behind an HTTPS reverse
 proxy).
 
-## Development
+## 🧑‍💻 Development
 
 ```bash
 npm run watch      # frontend rebuild on change
@@ -320,7 +316,7 @@ npm run watch      # frontend rebuild on change
 node --watch server.js
 ```
 
-## Protocol buffer regeneration
+## 🧬 Protocol buffer regeneration
 
 After editing `proto/mux.proto`, regenerate the Go bindings:
 
@@ -330,6 +326,6 @@ export PATH=$PATH:$HOME/go/bin
 protoc --go_out=client --go_opt=module=github.com/nemanjan00/reverse-shell-listener/client proto/mux.proto
 ```
 
-## License
+## 📄 License
 
 MIT

