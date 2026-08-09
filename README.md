@@ -5,7 +5,38 @@
 ![GitHub stars](https://img.shields.io/github/stars/nemanjan00/reverse-shell-listener?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/nemanjan00/reverse-shell-listener?style=social)
 
+![reverse-shell-listener hero](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/hero.svg)
+
 A single-host, multi-transport reverse-shell catcher with a browser dashboard.
+
+```mermaid
+flowchart LR
+    subgraph Targets
+        A[Raw TCP shell]
+        B[TLS shell]
+        C[HTTP webshell]
+        D[Go mux client]
+    end
+    subgraph Listener
+        E[Node server]
+        F[Session registry]
+        G[Host registry]
+    end
+    subgraph Operator
+        H[Browser dashboard]
+        I[REST API]
+        J[WebSocket streams]
+    end
+    A --> |1337| E
+    B --> |1338| E
+    C --> |8080| E
+    D --> |/mux| E
+    E --> F
+    E --> G
+    E --> H
+    E --> I
+    E --> J
+```
 
 - **Transports:**
   - raw TCP reverse-shell listener
