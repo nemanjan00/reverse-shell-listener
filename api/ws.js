@@ -1,11 +1,13 @@
 import { registry } from "../core/registry.js";
 import { hosts } from "../core/hosts.js";
+import { log } from "../core/log.js";
 import { authorized } from "./auth.js";
 
 // WebSocket endpoints, registered on the shared express-ws app:
 //   /api/ws/sessions       session-list event stream (JSON)
 //   /api/ws/session/:id    one session's terminal channel (binary bytes +
 //                          JSON control frames)
+//   /api/ws/log            live event log stream (JSON)
 //
 // express-ws upgrade requests bypass app.use() middleware, so each handler
 // authenticates itself.
@@ -123,5 +125,27 @@ export function registerWs(app) {
       session.off("exit", onExit);
       session.off("meta", onMeta);
     });
+  });
+
+  // --- event log stream -----------------------------------------------------
+  app.ws("/api/ws/log", (ws, req) => {
+    if (!authorized(req)) {
+      ws.close(1008, "unauthorized");
+      return;
+    }
+    const send = (obj) => {
+      try {
+        ws.send(JSON.stringify(obj));
+      } catch {
+        /* ignore */
+      }
+    };
+    // Replay history, then stream live entries. A `since` timestamp lets a
+    // reconnecting client skip entries it already received.
+    const since = Number(req.query.since) || 0;
+    for (const entry of log.list(since)) send(entry);
+    const onEntry = (entry) => send(entry);
+    log.on("entry", onEntry);
+    ws.on("close", () => log.off("entry", onEntry));
   });
 }

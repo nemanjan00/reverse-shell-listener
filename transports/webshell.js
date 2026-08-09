@@ -1,6 +1,7 @@
 import express from "express";
 import config from "../config.js";
 import { registry } from "../core/registry.js";
+import { log } from "../core/log.js";
 
 // HTTP webshell transport: for targets that can only reach out over HTTP(S).
 // The implant beacons to the same Express server — no raw socket involved.
@@ -69,8 +70,10 @@ export function webshellRouter() {
     session = registry.create({ transport: "webshell", remote, backend });
     states.set(session.id, { queue: [], waiter: null, timer: null });
     touch(session.id);
+    log.info("webshell registered", { sessionId: session.id, remote });
 
     session.on("exit", () => {
+      log.info("webshell session closed", { sessionId: session.id, remote });
       const st = states.get(session.id);
       if (st) clearTimeout(st.timer);
       states.delete(session.id);

@@ -1,4 +1,5 @@
 import { registry } from "../core/registry.js";
+import { log } from "../core/log.js";
 
 // Shared logic for the raw TCP and TLS transports: both hand us a duplex socket,
 // only the server that produced it differs. Adapts a socket to a Session.
@@ -21,10 +22,16 @@ export function handleSocket(socket, transport) {
   };
 
   session = registry.create({ transport, remote, backend });
+  log.info(`${transport} session connected`, { sessionId: session.id, remote });
 
   socket.on("data", (data) => session.push(data));
   socket.on("error", () => session.markExit());
-  socket.on("close", () => session.markExit());
+  socket.on("close", () => {
+    if (session.alive) {
+      log.info(`${transport} session closed`, { sessionId: session.id, remote });
+    }
+    session.markExit();
+  });
   socket.on("end", () => session.markExit());
   socket.on("timeout", () => session.markExit());
 

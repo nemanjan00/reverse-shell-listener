@@ -54,6 +54,8 @@ const app = state({
   badUsbTags: "",
   badUsbLoader: true,
   badUsbCopied: false,
+  logEntries: [],
+  logWs: null,
 });
 
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
@@ -508,6 +510,45 @@ function connectSessionsStream() {
   };
 
   ws.onclose = () => setTimeout(connectSessionsStream, 1500);
+  ws.onerror = () => {
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+  };
+}
+
+// --- Event log stream ------------------------------------------------------
+const LOG_MAX = 500;
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString(undefined, { hour12: false });
+}
+
+function connectLogStream() {
+  const since = app.logEntries.length
+    ? Math.max(...app.logEntries.map((e) => e.ts))
+    : 0;
+  const url = wsUrl("/api/ws/log") + (since ? `?since=${since}` : "");
+  const ws = new WebSocket(url);
+  app.logWs = ws;
+
+  ws.onmessage = (ev) => {
+    let entry;
+    try {
+      entry = JSON.parse(ev.data);
+    } catch {
+      return;
+    }
+    app.logEntries = [...app.logEntries, entry].slice(-LOG_MAX);
+  };
+
+  ws.onclose = () => {
+    app.logWs = null;
+    setTimeout(connectLogStream, 1500);
+  };
   ws.onerror = () => {
     try {
       ws.close();
@@ -975,6 +1016,38 @@ const CommandPalette = () =>
     }
   );
 
+const LogPanel = () =>
+  el(
+    "div",
+    { class: "log-panel" },
+    el(
+      "div",
+      { class: "list-group-label" },
+      el("span", {}, "Event log"),
+      el("span", {}, () => `${app.logEntries.length}`)
+    ),
+    el(
+      "div",
+      { class: "log-entries" },
+      when(
+        () => app.logEntries.length === 0,
+        () => el("div", { class: "empty" }, "No events")
+      ),
+      list(
+        () => app.logEntries.slice(-50).reverse(),
+        (e) => `${e.ts}:${e.level}:${e.message}`,
+        (e) =>
+          el(
+            "div",
+            { class: "log-entry " + e.level, title: JSON.stringify(e) },
+            el("span", { class: "log-ts" }, formatTime(e.ts)),
+            el("span", { class: "log-level" }, e.level),
+            el("span", { class: "log-msg" }, e.message)
+          )
+      )
+    )
+  );
+
 const Sidebar = () =>
   el(
     "aside",
@@ -1043,6 +1116,7 @@ const Sidebar = () =>
         () => el("div", { class: "empty" }, "None")
       )
     ),
+    LogPanel(),
     el(
       "div",
       { class: "sidebar-actions" },
@@ -1190,4 +1264,5 @@ mount(document.getElementById("app"), () =>
 );
 
 connectSessionsStream();
+connectLogStream();
 loadBuildTargets();

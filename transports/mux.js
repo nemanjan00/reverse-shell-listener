@@ -6,6 +6,7 @@ import protobuf from "protobufjs";
 import config from "../config.js";
 import { registry } from "../core/registry.js";
 import { hosts } from "../core/hosts.js";
+import { log } from "../core/log.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PROTO_VERSION = 1;
@@ -120,11 +121,13 @@ class Host {
 
     this._channels.set(channelId, { session });
     hosts.update(this);
+    log.info("mux channel opened", { hostId: this.id, channelId, sessionId: session.id, remote: session.remote });
   }
 
   onOpenError(channelId, message) {
     this._pending.delete(channelId);
     console.error(`[mux]  channel ${channelId} open failed: ${message}`);
+    log.warn("mux channel open failed", { hostId: this.id, channelId, message });
   }
 
   onData(channelId, data) {
@@ -135,6 +138,7 @@ class Host {
   onClose(channelId) {
     const ch = this._channels.get(channelId);
     if (!ch) return;
+    log.info("mux channel closed", { hostId: this.id, channelId, sessionId: ch.session.id });
     ch.session.markExit();
     this._channels.delete(channelId);
     hosts.update(this);
@@ -179,6 +183,7 @@ export function registerMux(app) {
         // A missing/mismatched token closes the connection immediately.
         if (config.BUILD_TOKEN && frame.hello.token !== config.BUILD_TOKEN) {
           console.warn(`[mux]  rejected host from ${remote}: bad or missing token`);
+          log.warn("mux host rejected: bad token", { remote });
           ws.close(1008, "unauthorized");
           return;
         }
@@ -193,12 +198,14 @@ export function registerMux(app) {
         };
         hosts.add(host);
         console.log(`[mux]  host ${host.id} connected: ${host.label()} (${remote})`);
+        log.info("mux host connected", { hostId: host.id, label: host.label(), remote, os: frame.hello.os, arch: frame.hello.arch, tags: frame.hello.tags });
 
         // Send the per-OS autoexec script if one exists. The client runs it
         // locally (persistence / setup) — not as a shell channel.
         const ae = readAutoExec(frame.hello.os);
         if (ae) {
           console.log(`[mux]  sending autoexec for ${frame.hello.os} to ${host.id}`);
+          log.info("autoexec sent", { hostId: host.id, os: frame.hello.os, bytes: ae.script.length });
           host.send({ autoExec: ae });
         }
 
@@ -238,6 +245,7 @@ export function registerMux(app) {
         host.teardown();
         hosts.remove(host.id);
         console.log(`[mux]  host ${host.id} disconnected`);
+        log.info("mux host disconnected", { hostId: host.id });
       }
     };
     ws.on("close", shutdown);

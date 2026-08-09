@@ -1,6 +1,7 @@
 import express from "express";
 import { registry } from "../core/registry.js";
 import { hosts } from "../core/hosts.js";
+import { log } from "../core/log.js";
 import { buildRouter } from "./build.js";
 
 // REST API for the dashboard. Shares the one Express app / port with everything
@@ -23,15 +24,16 @@ export function restRouter() {
   router.post("/sessions/:id/kill", (req, res) => {
     const s = registry.get(req.params.id);
     if (!s) return res.status(404).json({ error: "no such session" });
+    log.info("session killed", { sessionId: s.id, transport: s.transport, remote: s.remote });
     s.close();
     res.json(s.meta());
   });
 
   // Drop a session from the registry entirely.
   router.delete("/sessions/:id", (req, res) => {
-    if (!registry.get(req.params.id)) {
-      return res.status(404).json({ error: "no such session" });
-    }
+    const s = registry.get(req.params.id);
+    if (!s) return res.status(404).json({ error: "no such session" });
+    log.info("session deleted", { sessionId: s.id, transport: s.transport, remote: s.remote });
     registry.remove(req.params.id);
     res.json({ ok: true });
   });
@@ -45,6 +47,9 @@ export function restRouter() {
         removed++;
       }
     }
+    if (removed) {
+      log.info("dead sessions cleared", { removed });
+    }
     res.json({ ok: true, removed });
   });
 
@@ -52,6 +57,7 @@ export function restRouter() {
   router.post("/sessions/:id/upgrade", (req, res) => {
     const s = registry.get(req.params.id);
     if (!s) return res.status(404).json({ error: "no such session" });
+    log.info("session upgraded", { sessionId: s.id, transport: s.transport, remote: s.remote });
     s.upgrade();
     res.json(s.meta());
   });
@@ -85,6 +91,7 @@ export function restRouter() {
     const cols = Number(req.body.cols) || 80;
     const rows = Number(req.body.rows) || 24;
     const command = typeof req.body.command === "string" ? req.body.command : "";
+    log.info("host shell requested", { hostId: h.id, label: h.label(), command: command || "default shell", cols, rows });
     const channelId = h.openChannel({ command, cols, rows });
     if (channelId == null) {
       return res.status(503).json({ error: "could not open channel" });
@@ -94,6 +101,12 @@ export function restRouter() {
 
   // --- Build (cross-compile Go client from the dashboard) -------------------
   router.use("/build", buildRouter());
+
+  // --- Log (in-memory event log) --------------------------------------------
+  router.get("/log", (req, res) => {
+    const since = Number(req.query.since) || 0;
+    res.json(log.list(since));
+  });
 
   return router;
 }
