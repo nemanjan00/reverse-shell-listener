@@ -12,7 +12,7 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
   - TLS reverse-shell listener
   - HTTP webshell beacon transport
   - multiplexed WebSocket/protobuf implant protocol with a Go client
-- **Dashboard:** live session list with a full PTY terminal (resize + mouse support), one-click offline-session cleanup.
+- **Dashboard:** live session list with a full PTY terminal (resize + mouse support), one-click offline-session cleanup, and a live in-memory event log.
 - **Auth:** session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
 - **Build panel:** cross-compile the Go mux client from the dashboard with the server URL baked in — supports linux/darwin/windows × amd64/arm64, plus armv7 (Luckfox/Shark Jack) and mipsle soft-float (MT7628).
 
@@ -167,11 +167,13 @@ Windows PTY is not included in this build.
 | `/api/hosts`                     | GET    | List mux hosts                           |
 | `/api/hosts/:id`                 | GET    | Host metadata                            |
 | `/api/hosts/:id/shells`          | POST   | Ask host to open a new PTY shell         |
+| `/api/log`                       | GET    | In-memory event-log snapshot (`?since=ts`)
 
 ## WebSocket endpoints
 
 - `/api/ws/sessions` — JSON event stream for the session/host list
 - `/api/ws/session/:id` — binary terminal channel + JSON control frames
+- `/api/ws/log` — JSON event-log stream; replays history then streams live entries
 
 ## Security
 
@@ -186,9 +188,10 @@ a signed `rsl_session` cookie issued at `/login`:
 
 - the dashboard and static assets,
 - all `/api/*` REST routes,
-- the browser WebSocket endpoints `/api/ws/sessions` and `/api/ws/session/:id`
-  (express-ws upgrades bypass HTTP middleware, so each handler re-checks the
-  cookie and closes the socket with `1008` if it is missing or invalid).
+- the browser WebSocket endpoints `/api/ws/sessions`, `/api/ws/session/:id`,
+  and `/api/ws/log` (express-ws upgrades bypass HTTP middleware, so each
+  handler re-checks the cookie and closes the socket with `1008` if it is
+  missing or invalid).
 
 `AUTH_USER` / `AUTH_PASS` are required — the server refuses to start without
 them.
