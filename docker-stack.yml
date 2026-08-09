@@ -1,0 +1,48 @@
+---
+version: '3.5'
+
+services:
+  reverse-shell-listener:
+    image: nemanjan00/reverse-shell-listener:latest
+    environment:
+      - AUTH_USER=${AUTH_USER}
+      - AUTH_PASS=${AUTH_PASS}
+    networks:
+      - default
+    ports:
+      - target: 1337
+        published: 1337
+        mode: host
+      - target: 1338
+        published: 1338
+        mode: host
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+
+        - "traefik.docker.lbswarm=true"
+
+        - "traefik.http.services.reverse-shell-listener.loadbalancer.server.port=8080"
+        - "traefik.http.services.reverse-shell-listener-http.loadbalancer.server.port=8080"
+
+        - "traefik.http.middlewares.reverse-shell-listener-https-redirect.redirectscheme.scheme=https"
+        - "traefik.http.middlewares.reverse-shell-listener-https-redirect.redirectscheme.permanent=true"
+
+        - "traefik.http.routers.reverse-shell-listener.rule=Host(`rsl.nemanja.top`)"
+        - "traefik.http.routers.reverse-shell-listener.service=reverse-shell-listener"
+        - "traefik.http.routers.reverse-shell-listener.entrypoints=websecure"
+        - "traefik.http.routers.reverse-shell-listener.tls=true"
+        - "traefik.http.routers.reverse-shell-listener.tls.certresolver=letsencrypt"
+
+        - "traefik.http.routers.reverse-shell-listener-http.rule=Host(`rsl.nemanja.top`)"
+        - "traefik.http.routers.reverse-shell-listener-http.service=reverse-shell-listener-http"
+        - "traefik.http.routers.reverse-shell-listener-http.entrypoints=web"
+        - "traefik.http.routers.reverse-shell-listener-http.middlewares=reverse-shell-listener-https-redirect@docker"
+      restart_policy:
+        condition: on-failure
+
+networks:
+  default:
+    external: true
+    name: flocksocial
