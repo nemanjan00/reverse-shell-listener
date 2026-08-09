@@ -693,6 +693,21 @@ body {
 .field select:focus {
   border-color: var(--d-purple);
 }
+.field.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  color: var(--d-fg);
+}
+.field.checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--d-purple);
+}
 .ducky-preview {
   display: flex;
   flex-direction: column;

