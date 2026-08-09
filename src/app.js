@@ -77,7 +77,9 @@ const app = state({
   badUsbCopied: false,
   logEntries: [],
   logWs: null,
-  serverConfig: { proxy_url: "", proxy_enabled: false, proxy_token: "", build_token: "" },
+  proxyUrl: "",
+  proxyEnabled: false,
+  proxyToken: "",
   payloadsOpen: false,
   payloadsCopiedAll: false,
   sessionMenuOpen: false,
@@ -833,12 +835,9 @@ async function loadServerConfig() {
     const res = await fetch("/api/config");
     if (res.ok) {
       const cfg = await res.json();
-      app.serverConfig = {
-        proxy_url: cfg.proxy_url || "",
-        proxy_enabled: Boolean(cfg.proxy_enabled),
-        proxy_token: cfg.proxy_token || "",
-        build_token: cfg.build_token || "",
-      };
+      app.proxyUrl = cfg.proxy_url || "";
+      app.proxyEnabled = Boolean(cfg.proxy_enabled);
+      app.proxyToken = cfg.proxy_token || "";
       app.buildToken = cfg.build_token || "";
     }
   } catch {
@@ -1538,7 +1537,7 @@ const HostDetails = () =>
             )
           ),
           when(
-            () => app.serverConfig.proxy_enabled && hostHasFeature(h, FEATURE_PROXY),
+            () => app.proxyEnabled && hostHasFeature(h, FEATURE_PROXY),
             () => ProxyPanel(h)
           )
         )
@@ -1547,8 +1546,8 @@ const HostDetails = () =>
   );
 
 const ProxyPanel = (h) => {
-  const url = app.serverConfig.proxy_url;
-  const token = app.serverConfig.proxy_token;
+  const url = app.proxyUrl;
+  const token = app.proxyToken;
   const auth = `${h.id}:${token}`;
   const curlExample = `curl -x ${url} -U ${auth} https://example.com`;
   return el(
