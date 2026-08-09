@@ -1,4 +1,9 @@
-# Reverse Shell Listener v2
+# reverse-shell-listener
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-green.svg)](https://nodejs.org/)
+![GitHub stars](https://img.shields.io/github/stars/nemanjan00/reverse-shell-listener?style=social)
+![GitHub forks](https://img.shields.io/github/forks/nemanjan00/reverse-shell-listener?style=social)
 
 A single-host, multi-transport reverse-shell catcher with a browser dashboard.
 
