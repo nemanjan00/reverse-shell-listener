@@ -35,6 +35,7 @@ function buildClient(target, serverURL, tags) {
     const outPath = path.join(tmp, outName);
 
     const ldflags = [
+      `-s -w`,
       `-X github.com/nemanjan00/reverse-shell-listener/client.defaultServerURL=${serverURL || ""}`,
       `-X github.com/nemanjan00/reverse-shell-listener/client.defaultTags=${tags || ""}`,
     ].join(" ");
