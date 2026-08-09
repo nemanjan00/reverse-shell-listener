@@ -7,11 +7,13 @@
 
 A single-host, multi-transport reverse-shell catcher with a browser dashboard.
 
-- **Transports:** raw TCP (`1337`), TLS (`1338`), HTTP webshell (`/webshell`),
-  and a multiplexed WebSocket/protobuf implant protocol (`/mux`) with a Go client.
-- **Dashboard:** qrp + xterm.js, Dracula theme, live session list, full PTY
-  terminal with resize and mouse support.
-- **Auth:** optional session-cookie login (`AUTH_USER` / `AUTH_PASS`); protects the dashboard, REST API, and browser-facing WebSocket endpoints.
+- **Transports:**
+  - raw TCP reverse-shell listener
+  - TLS reverse-shell listener
+  - HTTP webshell beacon transport
+  - multiplexed WebSocket/protobuf implant protocol with a Go client
+- **Dashboard:** qrp + xterm.js, Dracula theme, live session list, full PTY terminal with resize and mouse support.
+- **Auth:** optional session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
 
 ![Screenshot](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/screenshot.png)
 
