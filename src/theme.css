@@ -652,3 +652,91 @@ body {
 .host-details-actions .btn {
   flex: 1;
 }
+
+/* Generic modal (build panel, BadUSB generator) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+}
+.modal {
+  width: min(560px, 92vw);
+  max-height: 85vh;
+  overflow: auto;
+  background: var(--d-bg-darker);
+  border: 1px solid var(--qrp-border);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--qrp-border);
+}
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.modal-body {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.modal-actions {
+  display: flex;
+  gap: 8px;
+}
+.modal-actions .btn {
+  flex: 1;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--d-comment);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.field input,
+.field select {
+  background: var(--d-bg);
+  border: 1px solid var(--qrp-border);
+  border-radius: 8px;
+  color: var(--d-fg);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.field input:focus,
+.field select:focus {
+  border-color: var(--d-purple);
+}
+.ducky-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ducky-script {
+  background: var(--d-bg);
+  border: 1px solid var(--qrp-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--qrp-font);
+  font-size: 12px;
+  color: var(--d-fg);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+}

