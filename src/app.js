@@ -63,11 +63,7 @@ const app = state({
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
 
 function csrfToken() {
-  if (app.csrfTokenValue) return app.csrfTokenValue;
-  // Fallback to the legacy non-HttpOnly cookie for sessions issued before the
-  // /api/csrf endpoint was introduced.
-  const m = document.cookie.match(/(?:^|; )rsl_csrf=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "";
+  return app.csrfTokenValue;
 }
 
 async function loadCsrfToken() {

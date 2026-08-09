@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import config from "../config.js";
 
 const COOKIE = "rsl_session";
-const CSRF_COOKIE = "rsl_csrf";
 const TTL_MS = 12 * 60 * 60 * 1000; // 12h sessions
 
 // A per-process secret unless one is pinned via AUTH_SECRET. Pinning keeps
@@ -55,10 +54,6 @@ export function issueToken(user) {
   const csrf = crypto.randomBytes(16).toString("base64url");
   const payload = base64url(JSON.stringify({ u: user, exp: Date.now() + TTL_MS, c: csrf }));
   return { token: `${payload}.${sign(payload)}`, csrf };
-}
-
-function verifyToken(token) {
-  return parsePayload(token) !== null;
 }
 
 function sign(data) {
