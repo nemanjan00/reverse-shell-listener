@@ -41,7 +41,12 @@ AUTH_USER=admin AUTH_PASS=s3cr3t npm start
 
 Then browse to `http://localhost:8080`. `AUTH_USER` / `AUTH_PASS` are required.
 
-## 🐳 Docker
+## 🐳 Docker (preferred)
+
+Docker is the recommended way to run RSL. The image bundles the frontend, the
+Node server, and the Go mux client (`rsl-client` is on `$PATH` inside the
+container). The TLS transport auto-generates a self-signed cert on first start
+using the bundled `openssl`.
 
 ```bash
 docker build -t reverse-shell-listener .
@@ -50,12 +55,42 @@ docker run -p 8080:8080 -p 1337:1337 -p 1338:1338 \
   reverse-shell-listener
 ```
 
-Add `-p 3128:3128 -e PROXY_TOKEN=... -e PROXY_PORT=3128` if you want the HTTP
-CONNECT proxy on its own port (recommended behind reverse proxies like Traefik).
+For a real deployment, use `docker compose` and expose only the API/frontend
+port and the dedicated HTTP CONNECT proxy port. Raw TCP/TLS listener ports are
+optional — use them only if you want targets to connect with `bash -i
+>/dev/tcp/...`; mux and webshell targets connect over the API port.
 
-The image bundles the frontend, the Node server, and the Go mux client
-(`rsl-client` is on `$PATH` inside the container). The TLS transport
-auto-generates a self-signed cert on first start using the bundled `openssl`.
+```yaml
+services:
+  rsl:
+    build: .
+    container_name: reverse-shell-listener
+    restart: unless-stopped
+    ports:
+      - "8080:8080"     # dashboard + REST + WebSocket + webshell + /mux
+      - "3128:3128"     # HTTP CONNECT proxy (optional)
+      # Uncomment only if you need raw shell listeners:
+      # - "1337:1337"   # raw TCP reverse-shell listener
+      # - "1338:1338"   # TLS reverse-shell listener
+    environment:
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      AUTH_USER: admin
+      AUTH_PASS: ${AUTH_PASS?set AUTH_PASS in .env}
+      AUTH_SECRET: ${AUTH_SECRET?set AUTH_SECRET in .env}
+      BUILD_TOKEN: ${BUILD_TOKEN?set BUILD_TOKEN in .env}
+      PROXY_TOKEN: ${PROXY_TOKEN?set PROXY_TOKEN in .env}
+      PROXY_PORT: "3128"
+      ENABLE_TCP: "true"
+      ENABLE_TLS: "true"
+      ENABLE_WEBSHELL: "true"
+      ENABLE_MUX: "true"
+      SCROLLBACK_BYTES: "1048576"
+      MUX_PING_MS: "20000"
+```
+
+`PROXY_PORT=3128` is recommended behind reverse proxies like Traefik because
+some proxies cannot forward raw `CONNECT` tunnels on an HTTP route.
 
 ## 💥 Reverse-shell payloads
 
