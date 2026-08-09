@@ -25,6 +25,13 @@ WORKDIR /app
 # on first start. Already present in alpine, but make it explicit.
 RUN apk add --no-cache openssl
 
+# Go toolchain: copied from the golang builder so the dashboard can cross-compile
+# the mux client on demand (see /api/build). Keep GOROOT/GOPATH stable.
+ENV GOROOT=/usr/local/go \
+    GOPATH=/root/go \
+    PATH=/usr/local/go/bin:/root/go/bin:$PATH
+COPY --from=go /usr/local/go /usr/local/go
+
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
@@ -36,6 +43,9 @@ COPY tls ./tls
 COPY transports ./transports
 COPY public/index.html ./public/index.html
 COPY server.js config.js ./
+
+# Client source tree so /api/build can run `go build` against it at runtime.
+COPY client ./client
 
 # The Go client binary, for operators who want to grab it from the image.
 COPY --from=go /rsl-client /usr/local/bin/rsl-client

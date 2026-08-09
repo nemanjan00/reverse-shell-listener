@@ -37,6 +37,11 @@ const app = state({
   currentId: null,
   connected: false, // terminal websocket connected
   sidebarOpen: false, // mobile hamburger state
+  buildTargets: [],
+  buildTarget: "linux-amd64",
+  buildServer: "",
+  buildTags: "",
+  building: false,
 });
 
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
@@ -192,6 +197,57 @@ async function openHostShell(hostId) {
   }).catch(() => {});
 }
 
+async function loadBuildTargets() {
+  try {
+    const res = await fetch("/api/build/targets");
+    if (res.ok) {
+      app.buildTargets = await res.json();
+      if (!app.buildTargets.includes(app.buildTarget)) {
+        app.buildTarget = app.buildTargets[0] || "";
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function buildClientUrl() {
+  const t = app.buildTarget || "linux-amd64";
+  const s = app.buildServer || "";
+  const tg = app.buildTags || "";
+  const q = new URLSearchParams({ target: t, server: s, tags: tg });
+  return `/api/build/client?${q}`;
+}
+
+async function downloadClient() {
+  if (app.building) return;
+  app.building = true;
+  try {
+    const res = await fetch(buildClientUrl());
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert("Build failed: " + (err.detail || res.statusText));
+      return;
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") || "";
+    const m = cd.match(/filename="?([^"]+)"?/i);
+    const name = m ? m[1] : "rsl-client";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert("Build failed: " + err.message);
+  } finally {
+    app.building = false;
+  }
+}
+
 // --- Session list stream ---------------------------------------------------
 function connectSessionsStream() {
   const ws = new WebSocket(wsUrl("/api/ws/sessions"));
@@ -303,6 +359,66 @@ const hostRow = (h) =>
     )
   );
 
+const BuildPanel = () =>
+  el(
+    "div",
+    { class: "build-panel" },
+    el(
+      "div",
+      { class: "list-group-label" },
+      el("span", {}, "Build client")
+    ),
+    el(
+      "label",
+      { class: "field" },
+      el("span", {}, "Server URL"),
+      el("input", {
+        type: "text",
+        placeholder: "ws://1.2.3.4:8080/mux",
+        value: () => app.buildServer,
+        oninput: (e) => (app.buildServer = e.target.value),
+      })
+    ),
+    el(
+      "label",
+      { class: "field" },
+      el("span", {}, "Tags"),
+      el("input", {
+        type: "text",
+        placeholder: "victim-1",
+        value: () => app.buildTags,
+        oninput: (e) => (app.buildTags = e.target.value),
+      })
+    ),
+    el(
+      "label",
+      { class: "field" },
+      el("span", {}, "Target"),
+      el(
+        "select",
+        {
+          onchange: (e) => (app.buildTarget = e.target.value),
+        },
+        ...app.buildTargets.map((t) =>
+          el(
+            "option",
+            { value: t, selected: () => app.buildTarget === t },
+            t
+          )
+        )
+      )
+    ),
+    el(
+      "button",
+      {
+        class: "btn",
+        disabled: () => app.building,
+        onclick: downloadClient,
+      },
+      () => (app.building ? "Building…" : "Download")
+    )
+  );
+
 const Sidebar = () =>
   el(
     "aside",
@@ -346,7 +462,8 @@ const Sidebar = () =>
         () => deadSessions().length === 0,
         () => el("div", { class: "empty" }, "None")
       )
-    )
+    ),
+    BuildPanel()
   );
 
 const Hamburger = () =>
@@ -470,3 +587,4 @@ mount(document.getElementById("app"), () =>
 );
 
 connectSessionsStream();
+loadBuildTargets();

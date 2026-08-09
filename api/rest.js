@@ -1,6 +1,7 @@
 import express from "express";
 import { registry } from "../core/registry.js";
 import { hosts } from "../core/hosts.js";
+import { buildRouter } from "./build.js";
 
 // REST API for the dashboard. Shares the one Express app / port with everything
 // else. Mounted at /api.
@@ -78,6 +79,9 @@ export function restRouter() {
     }
     res.json({ ok: true, channelId, host: h.meta() });
   });
+
+  // --- Build (cross-compile Go client from the dashboard) -------------------
+  router.use("/build", buildRouter());
 
   return router;
 }

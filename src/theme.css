@@ -463,3 +463,41 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--d-comment);
 }
+
+/* Build panel (cross-compile Go client from the dashboard) */
+.build-panel {
+  padding: 12px 14px 16px;
+  border-top: 1px solid var(--qrp-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.build-panel .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--d-comment);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.build-panel .field input,
+.build-panel .field select {
+  background: var(--d-bg);
+  border: 1px solid var(--qrp-border);
+  border-radius: 8px;
+  color: var(--d-fg);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.build-panel .field input:focus,
+.build-panel .field select:focus {
+  border-color: var(--d-purple);
+}
+.build-panel .btn {
+  width: 100%;
+}
