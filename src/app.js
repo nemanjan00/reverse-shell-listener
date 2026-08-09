@@ -70,7 +70,7 @@ const app = state({
   badUsbOs: "linux",
   badUsbArch: "amd64",
   badUsbTags: "",
-  badUsbDevice: "flipper",
+  badUsbDevice: "rubber",
   badUsbVid: "",
   badUsbPid: "",
   badUsbDelay: 1000,
