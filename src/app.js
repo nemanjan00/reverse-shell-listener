@@ -72,13 +72,18 @@ function csrfToken() {
 
 async function loadCsrfToken() {
   try {
-    const res = await fetch("/api/csrf");
+    const res = await fetch("/api/csrf", { credentials: "same-origin" });
     if (res.ok) {
       const data = await res.json();
       app.csrfTokenValue = data.csrf || "";
     }
   } catch {
     /* ignore */
+  }
+  // Old sessions issued before the CSRF claim was added have no token. Force a
+  // fresh login instead of letting action buttons fail silently.
+  if (!app.csrfTokenValue && location.pathname !== "/login") {
+    location.href = "/login";
   }
 }
 
@@ -316,7 +321,6 @@ function selectSession(id) {
 async function apiPost(url, body) {
   const token = csrfToken();
   if (!token) {
-    alert("Session expired or CSRF cookie missing. Please log in again.");
     location.href = "/login";
     return;
   }
