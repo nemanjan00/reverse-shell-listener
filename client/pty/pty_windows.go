@@ -5,6 +5,7 @@ package pty
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 func init() {
@@ -23,8 +24,15 @@ func Resize(f PTY, cols, rows uint32) error {
 	return nil
 }
 
+// shellCommand splits the command string into args for exec.Command. On
+// Windows we don't wrap in cmd /c — the command is already a full program
+// path (e.g. "powershell.exe -NoProfile").
 func shellCommand(cmd string) *exec.Cmd {
-	return exec.Command("cmd", "/c", cmd)
+	parts := strings.Fields(cmd)
+	if len(parts) == 0 {
+		return exec.Command("cmd.exe")
+	}
+	return exec.Command(parts[0], parts[1:]...)
 }
 
 // platformError returns a descriptive error for unsupported operations.

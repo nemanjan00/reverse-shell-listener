@@ -404,7 +404,10 @@ func (c *Client) write(frame *muxpb.Frame) error {
 func defaultShell() string {
 	switch runtime.GOOS {
 	case "windows":
-		return "cmd.exe"
+		if p := os.Getenv("COMSPEC"); p != "" {
+			return p
+		}
+		return "powershell.exe -NoProfile"
 	default:
 		if sh := os.Getenv("SHELL"); sh != "" {
 			return sh

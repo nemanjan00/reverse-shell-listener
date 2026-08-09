@@ -398,6 +398,7 @@ function badUsbDownloadUrl() {
   const host = location.host;
   const q = { os, arch };
   if (tags) q.tags = tags;
+  if (app.buildToken) q.token = app.buildToken;
   return `${proto}${host}/dl?${new URLSearchParams(q)}`;
 }
 
@@ -413,7 +414,7 @@ function badUsbShortUrl() {
   const q = { os, arch };
   if (tags) q.tags = tags;
   if (app.buildToken) q.token = app.buildToken;
-  return `${proto}${host}/s?${new URLSearchParams(q)}`;
+  return `${proto}${host}/dl/s?${new URLSearchParams(q)}`;
 }
 
 function badUsbScript() {
@@ -946,7 +947,7 @@ const CommandPalette = () =>
                       "palette-row " +
                       it.kind +
                       (it.dead ? " dead" : "") +
-                      (i() === app.paletteIndex ? " active" : ""),
+                      (i === app.paletteIndex ? " active" : ""),
                     onclick: () => {
                       it.action();
                       closePalette();

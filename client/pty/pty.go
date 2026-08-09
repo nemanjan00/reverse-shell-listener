@@ -32,7 +32,7 @@ var (
 // pipeShell is a non-PTY fallback used on platforms where a real PTY is not
 // available. It returns a combined ReadWriteCloser backed by stdin/stdout pipes.
 func pipeShell(command string) (PTY, error) {
-	cmd := exec.Command(command)
+	cmd := shellCommand(command)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
