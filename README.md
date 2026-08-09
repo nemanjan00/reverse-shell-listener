@@ -79,6 +79,7 @@ services:
       AUTH_PASS: ${AUTH_PASS?set AUTH_PASS in .env}
       AUTH_SECRET: ${AUTH_SECRET?set AUTH_SECRET in .env}
       BUILD_TOKEN: ${BUILD_TOKEN?set BUILD_TOKEN in .env}
+      API_TOKEN: ${API_TOKEN?set API_TOKEN in .env}
       PROXY_TOKEN: ${PROXY_TOKEN?set PROXY_TOKEN in .env}
       PROXY_PORT: "3128"
       ENABLE_TCP: "true"
@@ -239,6 +240,7 @@ Windows PTY is not included in this build.
 | `AUTH_PASS` | | **Required.** Dashboard/REST/WS login password |
 | `AUTH_SECRET` | random | Pin session cookie secret across restarts |
 | `BUILD_TOKEN` | | Shared token for `/mux`, `/dl`, and `/webshell` |
+| `API_TOKEN` | | Optional single token for programmatic `/api/*` access |
 | `PROXY_TOKEN` | | HTTP CONNECT proxy password (username = host id) |
 | `PROXY_PORT` | 0 | Dedicated proxy port; 0 shares the API port |
 | `SCROLLBACK_BYTES` | 1 MB | Per-session in-memory scrollback cap |
@@ -267,6 +269,10 @@ Windows PTY is not included in this build.
 
 All mutating endpoints (`POST`, `DELETE`, etc.) require the `X-CSRF-Token`
 header to match the `rsl_csrf` cookie issued at login.
+
+When `API_TOKEN` is set, REST endpoints also accept it via
+`Authorization: Bearer <token>` or `X-API-Token: <token>`. API-token clients do
+not need a session cookie and are exempt from CSRF.
 
 ## 📡 WebSocket endpoints
 
@@ -311,6 +317,11 @@ cookies. `/webshell/register` accepts the token via `?token=` or the
 `X-RSL-Token` header; `/webshell/:id/poll` and `/webshell/:id/output` require
 it on every request. The raw TCP and TLS reverse-shell listeners are
 unauthenticated by definition.
+
+`/api/*` accepts either a valid session cookie (with CSRF for mutating methods)
+or the single `API_TOKEN` via `Authorization: Bearer <token>` or
+`X-API-Token: <token>`. Treat `API_TOKEN` as a secret; anyone holding it has
+full REST API access.
 
 The server also sets `X-Content-Type-Options`, `X-Frame-Options`,
 `Referrer-Policy`, and a `Content-Security-Policy` on every response. HSTS is

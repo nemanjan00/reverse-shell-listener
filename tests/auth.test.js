@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { authEnabled, checkCredentials, issueToken, authorized, getTokenPayload, csrf, sessionCookie, clearCookie } from "../api/auth.js";
+import { authEnabled, checkCredentials, issueToken, authorized, getTokenPayload, apiAuthorized, csrf, sessionCookie, clearCookie } from "../api/auth.js";
 
 describe("auth", () => {
   // AUTH_USER / AUTH_PASS must be set in the environment before this module is
@@ -71,6 +71,23 @@ describe("auth", () => {
   it("clearCookie expires the session", () => {
     const cookie = clearCookie();
     assert.ok(cookie.includes("Max-Age=0"));
+  });
+
+  describe("api token", () => {
+    it("apiAuthorized accepts the configured token via X-API-Token", () => {
+      const req = { headers: { "x-api-token": process.env.API_TOKEN } };
+      assert.equal(apiAuthorized(req), true);
+    });
+
+    it("apiAuthorized accepts the configured token via Authorization Bearer", () => {
+      const req = { headers: { authorization: `Bearer ${process.env.API_TOKEN}` } };
+      assert.equal(apiAuthorized(req), true);
+    });
+
+    it("apiAuthorized rejects a wrong token", () => {
+      const req = { headers: { "x-api-token": "wrong" } };
+      assert.equal(apiAuthorized(req), false);
+    });
   });
 
   describe("csrf middleware", () => {

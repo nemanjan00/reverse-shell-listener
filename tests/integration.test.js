@@ -64,6 +64,7 @@ describe("integration", () => {
         BUILD_TOKEN: "buildtok",
         PROXY_TOKEN: "proxytok",
         PROXY_PORT: "0",
+        API_TOKEN: "apitok",
         ENABLE_TCP: "false",
         ENABLE_TLS: "false",
         ENABLE_WEBSHELL: "false",
@@ -145,5 +146,31 @@ describe("integration", () => {
   it("rejects /dl without build token", async () => {
     const res = await fetch(`${baseUrl}/dl?os=linux&arch=amd64`, { redirect: "manual" });
     assert.equal(res.status, 403);
+  });
+
+  it("allows API token access to /api/sessions without a session cookie", async () => {
+    const res = await fetch(`${baseUrl}/api/sessions`, {
+      headers: { "x-api-token": "apitok" },
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(Array.isArray(body));
+  });
+
+  it("allows API token mutating requests without CSRF token", async () => {
+    const res = await fetch(`${baseUrl}/api/sessions/clear-dead`, {
+      method: "POST",
+      headers: { "x-api-token": "apitok" },
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.ok, true);
+  });
+
+  it("rejects API requests with a wrong API token", async () => {
+    const res = await fetch(`${baseUrl}/api/sessions`, {
+      headers: { "x-api-token": "wrong" },
+    });
+    assert.equal(res.status, 401);
   });
 });

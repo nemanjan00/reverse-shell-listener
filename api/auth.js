@@ -87,6 +87,17 @@ export function getTokenPayload(req) {
   return parsePayload(cookies[COOKIE]);
 }
 
+// True when the request carries the single shared API token. API tokens are
+// meant for automation/scripts, not browsers, so they bypass CSRF and the
+// session-cookie flow on /api/* REST routes.
+export function apiAuthorized(req) {
+  if (!config.API_TOKEN) return false;
+  const auth = String(req.headers.authorization || "");
+  const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const header = req.headers["x-api-token"] || bearer;
+  return safeEqual(String(header), config.API_TOKEN);
+}
+
 export function sessionCookie(token, secure) {
   const attrs = [
     `${COOKIE}=${token}`,
@@ -107,8 +118,10 @@ export function clearCookie() {
 // matches the `c` claim stored in the signed session token. The dashboard reads
 // this value from a GET /api/csrf endpoint instead of a cookie, so it works
 // behind reverse proxies that might block or mishandle non-HttpOnly cookies.
+// API-token clients are not cookie-based, so CSRF does not apply to them.
 export function csrf(req, res, next) {
   if (req.method === "GET" || req.method === "HEAD") return next();
+  if (apiAuthorized(req)) return next();
   const payload = getTokenPayload(req);
   const header = req.headers["x-csrf-token"];
   if (!payload || !header || header !== payload.c) {
@@ -133,6 +146,8 @@ export function requireAuth() {
 
   return (req, res, next) => {
     if (authorized(req)) return next();
+    // API tokens grant access to /api/* REST routes only.
+    if (req.path.startsWith("/api") && apiAuthorized(req)) return next();
     // XHR/fetch and JSON clients get a 401; browsers navigating get the login page.
     const wantsJson =
       req.path.startsWith("/api") ||

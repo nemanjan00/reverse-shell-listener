@@ -39,6 +39,11 @@ const config = {
   // dashboard login — for badUSB scripts). When unset, /dl is disabled.
   BUILD_TOKEN: process.env.BUILD_TOKEN || "",
 
+  // Single shared API token for programmatic access to /api/* REST endpoints.
+  // Accepts `Authorization: Bearer <token>` or `X-API-Token: <token>`.
+  // When unset, REST API access requires a session cookie + CSRF token.
+  API_TOKEN: process.env.API_TOKEN || "",
+
   // HTTP CONNECT proxy. When PROXY_TOKEN is set, the proxy is enabled.
   // If PROXY_PORT is set (>0), the proxy listens on that dedicated TCP port.
   // If PROXY_PORT is 0/unset, the proxy handler is attached to the same HTTP

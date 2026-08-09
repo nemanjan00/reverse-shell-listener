@@ -9,7 +9,7 @@
     "watch": "node build.js --watch",
     "start": "node build.js && node server.js",
     "dev": "node build.js && node --watch server.js",
-    "test": "AUTH_USER=test AUTH_PASS=test node --test tests/**/*.test.js"
+    "test": "AUTH_USER=test AUTH_PASS=test API_TOKEN=test-api-token node --test tests/**/*.test.js"
   },
   "repository": {
     "type": "git",
