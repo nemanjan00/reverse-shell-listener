@@ -242,6 +242,10 @@ async function loadBuildTargets() {
   } catch {
     /* ignore */
   }
+  if (!app.buildServer) {
+    const proto = location.protocol === "https:" ? "wss://" : "ws://";
+    app.buildServer = `${proto}${location.host}/mux`;
+  }
 }
 
 function buildClientUrl() {
