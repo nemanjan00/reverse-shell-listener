@@ -6,7 +6,7 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
   and a multiplexed WebSocket/protobuf implant protocol (`/mux`) with a Go client.
 - **Dashboard:** qrp + xterm.js, Dracula theme, live session list, full PTY
   terminal with resize and mouse support.
-- **Auth:** optional session cookie login (`AUTH_USER` / `AUTH_PASS`).
+- **Auth:** optional session-cookie login (`AUTH_USER` / `AUTH_PASS`); protects the dashboard, REST API, and browser-facing WebSocket endpoints.
 
 ![Screenshot](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/screenshot.png)
 
@@ -141,14 +141,29 @@ Windows PTY is not included in this build.
 
 ## Security
 
-The dashboard grants shell access to every caught session. Even with Basic
-Auth/session login, it should not be exposed to the public internet. Run it
-bound to localhost behind an SSH tunnel or on a trusted VPN. Only the
-reverse-shell listener ports and (optionally) the webshell HTTP path should be
-reachable by targets.
+The dashboard grants shell access to every caught session, so it must not be
+exposed to the public internet even with auth enabled. Run it bound to
+localhost behind an SSH tunnel or on a trusted VPN. Only the reverse-shell
+listener ports and (optionally) the webshell HTTP path should be reachable by
+targets.
+
+When `AUTH_USER` / `AUTH_PASS` are set, everything operator-facing is gated by
+a signed `rsl_session` cookie issued at `/login`:
+
+- the dashboard and static assets,
+- all `/api/*` REST routes,
+- the browser WebSocket endpoints `/api/ws/sessions` and `/api/ws/session/:id`
+  (express-ws upgrades bypass HTTP middleware, so each handler re-checks the
+  cookie and closes the socket with `1008` if it is missing or invalid).
+
+Without `AUTH_USER` / `AUTH_PASS` set, `authorized()` returns `true` for
+everything and the server logs a loud warning. This is only safe behind a
+trusted tunnel.
 
 `/webshell/*` and `/mux` are deliberately unauthenticated — implants are dumb
-loops on the target and cannot carry operator credentials.
+loops on the target and cannot carry operator credentials. The raw TCP and
+TLS reverse-shell listeners are unauthenticated by definition for the same
+reason.
 
 ## Development
 
