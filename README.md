@@ -11,35 +11,6 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
 
 ![Screenshot](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/screenshot.png)
 
-```mermaid
-flowchart LR
-    subgraph Targets
-        A[Raw TCP shell]
-        B[TLS shell]
-        C[HTTP webshell]
-        D[Go mux client]
-    end
-    subgraph Listener
-        E[Node server]
-        F[Session registry]
-        G[Host registry]
-    end
-    subgraph Operator
-        H[Browser dashboard]
-        I[REST API]
-        J[WebSocket streams]
-    end
-    A --> |1337| E
-    B --> |1338| E
-    C --> |8080| E
-    D --> |/mux| E
-    E --> F
-    E --> G
-    E --> H
-    E --> I
-    E --> J
-```
-
 ## ✨ Features
 
 | | |
@@ -324,6 +295,37 @@ After editing `proto/mux.proto`, regenerate the Go bindings:
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 export PATH=$PATH:$HOME/go/bin
 protoc --go_out=client --go_opt=module=github.com/nemanjan00/reverse-shell-listener/client proto/mux.proto
+```
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    subgraph Targets
+        A[Raw TCP shell]
+        B[TLS shell]
+        C[HTTP webshell]
+        D[Go mux client]
+    end
+    subgraph Listener
+        E[Node server]
+        F[Session registry]
+        G[Host registry]
+    end
+    subgraph Operator
+        H[Browser dashboard]
+        I[REST API]
+        J[WebSocket streams]
+    end
+    A --> |1337| E
+    B --> |1338| E
+    C --> |8080| E
+    D --> |/mux| E
+    E --> F
+    E --> G
+    E --> H
+    E --> I
+    E --> J
 ```
 
 ## 📄 License
