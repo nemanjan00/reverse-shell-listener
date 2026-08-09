@@ -58,7 +58,8 @@ COPY --from=go /rsl-client /usr/local/bin/rsl-client
 #   8080 — dashboard + REST + WebSocket + /mux + /webshell
 #   1337 — raw TCP reverse-shell listener
 #   1338 — TLS reverse-shell listener
-EXPOSE 8080 1337 1338
+#   3128 — HTTP CONNECT proxy (only when PROXY_PORT=3128)
+EXPOSE 8080 1337 1338 3128
 
 # Required at runtime; pass via `docker run -e AUTH_USER=... -e AUTH_PASS=...`.
 CMD ["node", "server.js"]
