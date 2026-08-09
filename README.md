@@ -56,38 +56,6 @@ The image bundles the frontend, the Node server, and the Go mux client
 (`rsl-client` is on `$PATH` inside the container). The TLS transport
 auto-generates a self-signed cert on first start using the bundled `openssl`.
 
-## 🛠️ Scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm run build` | Bundle `src/` into `public/dist/` |
-| `npm run watch` | Rebuild on change |
-| `npm start` | Build + run the listener |
-| `npm run dev` | Build + run with node --watch |
-
-## ⚙️ Configuration (env vars)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 8080 | HTTP dashboard + REST + WebSocket + webshell |
-| `HOST` | 0.0.0.0 | Bind address |
-| `TCP_PORT` | 1337 | Raw TCP reverse-shell listener |
-| `TLS_PORT` | 1338 | TLS reverse-shell listener |
-| `ENABLE_TCP` | true | |
-| `ENABLE_TLS` | true | |
-| `ENABLE_WEBSHELL` | true | |
-| `ENABLE_MUX` | true | Multiplexed Go client WebSocket transport |
-| `AUTH_USER` | | **Required.** Dashboard/REST/WS login username |
-| `AUTH_PASS` | | **Required.** Dashboard/REST/WS login password |
-| `AUTH_SECRET` | random | Pin session cookie secret across restarts |
-| `BUILD_TOKEN` | | Shared token for `/mux`, `/dl`, and `/webshell` |
-| `PROXY_TOKEN` | | HTTP CONNECT proxy password (username = host id) |
-| `PROXY_PORT` | 0 | Dedicated proxy port; 0 shares the API port |
-| `SCROLLBACK_BYTES` | 1 MB | Per-session in-memory scrollback cap |
-| `WEBSHELL_POLL_MS` | 25000 | Long-poll hold time |
-| `WEBSHELL_TIMEOUT` | 30000 | Idle timeout before a webshell beacon is dead |
-| `MUX_PING_MS` | 20000 | Keepalive ping interval for mux hosts |
-
 ## 💥 Reverse-shell payloads
 
 ### Raw TCP
@@ -207,6 +175,40 @@ GOOS=windows GOARCH=amd64 go build -o rsl-client-windows-amd64.exe ./cmd
 The client builds for all common OS/arch combinations. On Linux/macOS it uses a
 real PTY; on Windows it falls back to a pipe-backed shell because a portable
 Windows PTY is not included in this build.
+
+---
+
+## 🛠️ Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run build` | Bundle `src/` into `public/dist/` |
+| `npm run watch` | Rebuild on change |
+| `npm start` | Build + run the listener |
+| `npm run dev` | Build + run with node --watch |
+
+## ⚙️ Configuration (env vars)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 8080 | HTTP dashboard + REST + WebSocket + webshell |
+| `HOST` | 0.0.0.0 | Bind address |
+| `TCP_PORT` | 1337 | Raw TCP reverse-shell listener |
+| `TLS_PORT` | 1338 | TLS reverse-shell listener |
+| `ENABLE_TCP` | true | |
+| `ENABLE_TLS` | true | |
+| `ENABLE_WEBSHELL` | true | |
+| `ENABLE_MUX` | true | Multiplexed Go client WebSocket transport |
+| `AUTH_USER` | | **Required.** Dashboard/REST/WS login username |
+| `AUTH_PASS` | | **Required.** Dashboard/REST/WS login password |
+| `AUTH_SECRET` | random | Pin session cookie secret across restarts |
+| `BUILD_TOKEN` | | Shared token for `/mux`, `/dl`, and `/webshell` |
+| `PROXY_TOKEN` | | HTTP CONNECT proxy password (username = host id) |
+| `PROXY_PORT` | 0 | Dedicated proxy port; 0 shares the API port |
+| `SCROLLBACK_BYTES` | 1 MB | Per-session in-memory scrollback cap |
+| `WEBSHELL_POLL_MS` | 25000 | Long-poll hold time |
+| `WEBSHELL_TIMEOUT` | 30000 | Idle timeout before a webshell beacon is dead |
+| `MUX_PING_MS` | 20000 | Keepalive ping interval for mux hosts |
 
 ## 🔌 REST API
 
