@@ -131,6 +131,17 @@ request is detected as HTTPS (e.g., behind an HTTPS reverse proxy).
 - The dashboard loads `/api/config` to display the proxy URL and a copyable curl
   example per host.
 
+## Dashboard features
+
+- BadUSB / DuckyScript generator (`src/app.js:badUsbScript`) with OS/arch
+  selector, Flipper Zero vs USB Rubber Ducky device syntax, optional VID/PID,
+  and pre-payload delay. macOS defaults to Apple keyboard IDs to skip the
+  Keyboard Setup Assistant.
+- File transfer and native file-system browser per mux host (gated by the
+  host's `Hello.features` bitmap).
+- Command palette (`Ctrl+K`), browser notifications, help overlay (`?`),
+  resizable panels, session scrollback download, and copyable payload examples.
+
 ## Docker image
 
 Published to Docker Hub at `docker pull nemanjan00/reverse-shell-listener:latest`

