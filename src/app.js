@@ -1865,17 +1865,17 @@ const Toolbar = () =>
               ? "dead"
               : app.connected
                 ? "connected"
-                : ""),
+                : "connecting"),
+        title: () =>
+          !current()
+            ? "idle"
+            : !current().alive
+              ? "dead"
+              : app.connected
+                ? "connected"
+                : "connecting…",
       },
-      el("span", { class: "dot" }),
-      () =>
-        !current()
-          ? "idle"
-          : !current().alive
-            ? "dead"
-            : app.connected
-              ? "connected"
-              : "connecting…"
+      el("span", { class: "dot" })
     ),
     ToolbarActions({ class: "toolbar-desktop-actions" }),
     el(

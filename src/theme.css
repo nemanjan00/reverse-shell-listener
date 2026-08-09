@@ -381,25 +381,29 @@ body {
 .status {
   display: flex;
   align-items: center;
-  gap: 7px;
   font-size: 12px;
-  color: var(--d-comment);
 }
 
 .status .dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--d-comment);
 }
 
 .status.connected .dot {
   background: var(--d-green);
-  box-shadow: 0 0 8px var(--d-green);
+  box-shadow: 0 0 10px var(--d-green);
 }
 
 .status.dead .dot {
   background: var(--d-red);
+  box-shadow: 0 0 10px var(--d-red);
+}
+
+.status.connecting .dot {
+  background: var(--d-orange);
+  box-shadow: 0 0 10px var(--d-orange);
 }
 
 .btn {
