@@ -6,21 +6,35 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/UserExistsError/conpty"
 )
 
 func init() {
 	osName = "windows"
 }
 
-// Start opens a pipe-backed shell because Windows lacks a portable real PTY
-// in this build. Mouse and full-screen apps that depend on a TTY will not work
-// under the pipe fallback, but regular command IO will.
+// Start tries Windows ConPTY first (real pseudo-terminal, so interactive
+// programs and keystrokes work), and falls back to a pipe-backed shell on
+// older Windows versions or when ConPTY is unavailable.
 func Start(command string, cols, rows uint32) (PTY, error) {
+	cmdline := commandLine(command)
+	if conpty.IsConPtyAvailable() {
+		cpty, err := conpty.Start(cmdline, conpty.ConPtyDimensions(int(cols), int(rows)))
+		if err == nil {
+			supported = true
+			return &conPty{cpty}, nil
+		}
+	}
+	supported = false
 	return pipeShell(command)
 }
 
-// Resize is a no-op on Windows pipe fallbacks.
+// Resize resizes a ConPTY; it is a no-op for the pipe fallback.
 func Resize(f PTY, cols, rows uint32) error {
+	if c, ok := f.(*conPty); ok {
+		return c.Resize(int(cols), int(rows))
+	}
 	return nil
 }
 
@@ -35,7 +49,19 @@ func shellCommand(cmd string) *exec.Cmd {
 	return exec.Command(parts[0], parts[1:]...)
 }
 
+// commandLine returns a single command-line string for ConPTY.
+func commandLine(cmd string) string {
+	if strings.TrimSpace(cmd) == "" {
+		return "cmd.exe"
+	}
+	return cmd
+}
+
 // platformError returns a descriptive error for unsupported operations.
 func platformError(op string) error {
 	return fmt.Errorf("%s is not supported on Windows in this build", op)
+}
+
+type conPty struct {
+	*conpty.ConPty
 }
