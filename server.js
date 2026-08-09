@@ -11,9 +11,7 @@ import {
   checkCredentials,
   issueToken,
   sessionCookie,
-  csrfCookie,
   clearCookie,
-  clearCsrfCookie,
   csrf,
 } from "./api/auth.js";
 import { loginPage } from "./api/login-page.js";
@@ -71,17 +69,14 @@ app.post("/login", express.urlencoded({ extended: false }), (req, res) => {
   if (!authEnabled()) return res.redirect("/");
   const { username, password } = req.body || {};
   if (checkCredentials(username, password)) {
-    const { token, csrf } = issueToken(username);
-    res.setHeader("Set-Cookie", [
-      sessionCookie(token, isSecure(req)),
-      csrfCookie(token, isSecure(req)),
-    ]);
+    const { token } = issueToken(username);
+    res.setHeader("Set-Cookie", sessionCookie(token, isSecure(req)));
     return res.redirect("/");
   }
   res.redirect("/login?error=1");
 });
 app.post("/logout", (req, res) => {
-  res.setHeader("Set-Cookie", [clearCookie(), clearCsrfCookie()]);
+  res.setHeader("Set-Cookie", clearCookie());
   res.redirect("/login");
 });
 

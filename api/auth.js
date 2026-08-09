@@ -104,35 +104,19 @@ export function sessionCookie(token, secure) {
   return attrs.join("; ");
 }
 
-export function csrfCookie(token, secure) {
-  const payload = parsePayload(token);
-  const csrf = payload && payload.c ? payload.c : "";
-  const attrs = [
-    `${CSRF_COOKIE}=${csrf}`,
-    "Path=/",
-    "SameSite=Strict",
-    `Max-Age=${Math.floor(TTL_MS / 1000)}`,
-  ];
-  if (secure) attrs.push("Secure");
-  return attrs.join("; ");
-}
-
 export function clearCookie() {
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
 }
 
-export function clearCsrfCookie() {
-  return `${CSRF_COOKIE}=; Path=/; SameSite=Strict; Max-Age=0`;
-}
-
-// Double-submit CSRF protection: the dashboard reads the non-HttpOnly
-// rsl_csrf cookie and sends it back as X-CSRF-Token on mutating requests.
+// CSRF protection: mutating requests must include an X-CSRF-Token header that
+// matches the `c` claim stored in the signed session token. The dashboard reads
+// this value from a GET /api/csrf endpoint instead of a cookie, so it works
+// behind reverse proxies that might block or mishandle non-HttpOnly cookies.
 export function csrf(req, res, next) {
   if (req.method === "GET" || req.method === "HEAD") return next();
   const payload = getTokenPayload(req);
   const header = req.headers["x-csrf-token"];
-  const cookies = parseCookies(req.headers && req.headers.cookie);
-  if (!payload || !header || header !== payload.c || header !== cookies[CSRF_COOKIE]) {
+  if (!payload || !header || header !== payload.c) {
     return res.status(403).json({ error: "invalid csrf token" });
   }
   next();

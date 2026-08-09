@@ -2,12 +2,18 @@ import express from "express";
 import { registry } from "../core/registry.js";
 import { hosts } from "../core/hosts.js";
 import { log } from "../core/log.js";
+import { getTokenPayload } from "./auth.js";
 import { buildRouter } from "./build.js";
 
 // REST API for the dashboard. Shares the one Express app / port with everything
 // else. Mounted at /api.
 export function restRouter() {
   const router = express.Router();
+
+  router.get("/csrf", (req, res) => {
+    const payload = getTokenPayload(req);
+    res.json({ csrf: payload && payload.c ? payload.c : "" });
+  });
 
   router.get("/sessions", (req, res) => {
     res.json(registry.list().map((s) => s.meta()));
