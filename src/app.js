@@ -61,6 +61,7 @@ const app = state({
   logWs: null,
   payloadsOpen: false,
   payloadsCopiedAll: false,
+  sessionMenuOpen: false,
   csrfTokenValue: "",
   helpOpen: false,
   lastUserActionAt: 0, // used to suppress self-triggered notifications
@@ -218,6 +219,13 @@ function closeHelp() {
   app.helpOpen = false;
 }
 
+function openSessionMenu() {
+  app.sessionMenuOpen = true;
+}
+function closeSessionMenu() {
+  app.sessionMenuOpen = false;
+}
+
 function paletteRunSelected() {
   const items = paletteItems();
   const it = items[app.paletteIndex];
@@ -259,6 +267,11 @@ window.addEventListener("keydown", (e) => {
     if (app.paletteOpen) {
       e.preventDefault();
       closePalette();
+      return;
+    }
+    if (app.sessionMenuOpen) {
+      e.preventDefault();
+      closeSessionMenu();
       return;
     }
   }
@@ -1760,6 +1773,54 @@ const Hamburger = () =>
     el("span", {})
   );
 
+const ToolbarActions = ({ isDropdown = false, onAction }) => {
+  const wrap = (fn) => () => {
+    fn();
+    if (onAction) onAction();
+  };
+  return el(
+    "div",
+    { class: isDropdown ? "toolbar-dropdown-menu" : "toolbar-actions" },
+    el(
+      "button",
+      {
+        class: "btn",
+        disabled: () => !current(),
+        onclick: wrap(() => {
+          const c = current();
+          if (c) downloadScrollback(c.id);
+        }),
+        title: "Download session scrollback",
+      },
+      "Download"
+    ),
+    el(
+      "button",
+      {
+        class: "btn",
+        disabled: () =>
+          !current() ||
+          !current().alive ||
+          current().transport === "webshell" ||
+          current().transport === "mux" ||
+          current().upgraded,
+        onclick: wrap(upgradeCurrent),
+        title: "Upgrade the remote shell to a PTY-backed bash",
+      },
+      "Upgrade PTY"
+    ),
+    el(
+      "button",
+      {
+        class: "btn danger",
+        disabled: () => !current() || !current().alive,
+        onclick: wrap(killCurrent),
+      },
+      "Kill"
+    )
+  );
+};
+
 const Toolbar = () =>
   el(
     "header",
@@ -1809,42 +1870,33 @@ const Toolbar = () =>
               ? "connected"
               : "connecting…"
     ),
+    ToolbarActions({ class: "toolbar-desktop-actions" }),
     el(
-      "button",
-      {
-        class: "btn",
-        disabled: () => !current(),
-        onclick: () => {
-          const c = current();
-          if (c) downloadScrollback(c.id);
+      "div",
+      { class: "toolbar-mobile-actions" },
+      el(
+        "button",
+        {
+          class: "btn",
+          disabled: () => !current(),
+          onclick: () => (app.sessionMenuOpen = !app.sessionMenuOpen),
         },
-        title: "Download session scrollback",
-      },
-      "Download"
-    ),
-    el(
-      "button",
-      {
-        class: "btn",
-        disabled: () =>
-          !current() ||
-          !current().alive ||
-          current().transport === "webshell" ||
-          current().transport === "mux" ||
-          current().upgraded,
-        onclick: upgradeCurrent,
-        title: "Upgrade the remote shell to a PTY-backed bash",
-      },
-      "Upgrade PTY"
-    ),
-    el(
-      "button",
-      {
-        class: "btn danger",
-        disabled: () => !current() || !current().alive,
-        onclick: killCurrent,
-      },
-      "Kill"
+        () => (app.sessionMenuOpen ? "Session ▲" : "Session ▼")
+      ),
+      when(
+        () => app.sessionMenuOpen,
+        () =>
+          el(
+            "div",
+            {
+              class: "toolbar-dropdown-overlay",
+              onclick: (e) => {
+                if (e.target.classList.contains("toolbar-dropdown-overlay")) closeSessionMenu();
+              },
+            },
+            ToolbarActions({ isDropdown: true, onAction: closeSessionMenu })
+          )
+      )
     )
   );
 
