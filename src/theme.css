@@ -318,7 +318,7 @@ body {
   padding: 12px 18px;
   border-bottom: 1px solid var(--qrp-border);
   background: var(--d-bg-darker);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .toolbar .title {
