@@ -155,6 +155,15 @@ const liveSessions = () => app.sessions.filter((s) => s.alive && sessionMatches(
 const deadSessions = () => app.sessions.filter((s) => !s.alive && sessionMatches(s));
 const liveHosts = () => app.hosts.filter((h) => h.alive && hostMatches(h));
 
+function hostUserAt(h) {
+  const user = h.username && h.username.trim();
+  const hostname = h.hostname && h.hostname.trim();
+  if (user && hostname) return `${user}@${hostname}`;
+  if (hostname) return hostname;
+  if (user) return user;
+  return h.remote || "unknown";
+}
+
 // --- Command palette (Ctrl+K) ---------------------------------------------
 // One ranked list of every host + session, filtered by the palette query.
 // Hosts come first (they're the "containers"), then live sessions, then dead.
@@ -169,7 +178,7 @@ function paletteItems() {
       kind: "host",
       id: h.id,
       title: h.label || h.hostname || h.remote,
-      sub: `host · ${h.username || "?"}@${h.os}/${h.arch} · ${h.channels}ch`,
+      sub: `host · ${hostUserAt(h)} · ${h.os}/${h.arch} · ${h.channels}ch`,
       action: () => openHostDetails(h.id),
     });
   }
@@ -979,7 +988,7 @@ const hostRow = (h) =>
       el(
         "div",
         { class: "sub" },
-        `${h.username || "?"}@${h.os}/${h.arch} #${h.id}`
+        `${hostUserAt(h)} · ${h.os}/${h.arch} #${h.id}`
       )
     ),
     el(
@@ -1307,7 +1316,7 @@ const HostDetails = () =>
               el(
                 "div",
                 { class: "sub" },
-                `${h.username || "?"}@${h.hostname || "?"} · ${h.os}/${h.arch} · ${h.id}`
+                `${hostUserAt(h)} · ${h.os}/${h.arch} · ${h.id}`
               )
             ),
             el(
