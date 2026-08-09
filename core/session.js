@@ -63,7 +63,7 @@ export class Session extends EventEmitter {
   resize(cols, rows) {
     cols = Number(cols) | 0;
     rows = Number(rows) | 0;
-    if (!cols || !rows) return;
+    if (cols <= 0 || rows <= 0 || cols > 999 || rows > 999) return;
     this.cols = cols;
     this.rows = rows;
     if (this.alive && typeof this._backend.resize === "function") {

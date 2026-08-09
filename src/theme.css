@@ -902,3 +902,29 @@ body {
   min-width: 0;
   word-break: break-word;
 }
+
+/* --- Payload examples modal ----------------------------------------------- */
+.payload-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.payload-script {
+  background: var(--d-bg);
+  border: 1px solid var(--qrp-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--qrp-font);
+  font-size: 12px;
+  color: var(--d-fg);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+}
+
+.payload-block .btn {
+  align-self: flex-start;
+}

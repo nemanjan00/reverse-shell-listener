@@ -28,19 +28,29 @@ const TARGETS = {
   "windows-arm64": { goos: "windows", goarch: "arm64", suffix: ".exe" },
 };
 
-// Sanitize a value for embedding into a Go -ldflags -X key=value argument.
-// Rejects anything containing characters that could break out of the
-// -X flag or inject extra linker flags (spaces, quotes, equals). We use
-// execFile (no shell), so shell metacharacters are inert, but ldflags
-// injection via " -X evil=1" is still possible. Allow only URL/host-safe
-// characters + a few common punctuation marks that show up in tags.
+// Sanitize a simple ldflag value: lowercase slug-like strings (tags, etc).
 function sanitizeLdflagValue(v) {
   const s = String(v || "");
-  // Allow alphanumerics, dots, dashes, underscores, colons, slashes,
-  // question, ampersand, hash, brackets (for IPv6), commas, tildes.
-  // Reject spaces, quotes, equals signs, and anything else that could
-  // split an -X argument or start a new flag.
-  if (!/^[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=-]+$/.test(s)) {
+  if (!/^[a-z0-9_-]+$/.test(s)) {
+    throw new Error(`invalid value for ldflag: ${JSON.stringify(s)}`);
+  }
+  return s;
+}
+
+// Sanitize the mux server URL by parsing it as a URL.
+function sanitizeLdflagServerURL(v) {
+  const s = String(v || "");
+  const u = new URL(s);
+  if (!/^wss?:$/.test(u.protocol)) {
+    throw new Error(`invalid server URL protocol: ${JSON.stringify(s)}`);
+  }
+  return s;
+}
+
+// Sanitize the base64url BUILD_TOKEN.
+function sanitizeLdflagToken(v) {
+  const s = String(v || "");
+  if (!/^[A-Za-z0-9_-]+$/.test(s)) {
     throw new Error(`invalid value for ldflag: ${JSON.stringify(s)}`);
   }
   return s;
@@ -62,9 +72,9 @@ function buildClient(target, serverURL, tags) {
 
     const ldflags = [
       `-s -w`,
-      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultServerURL=${sanitizeLdflagValue(serverURL)}`,
+      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultServerURL=${sanitizeLdflagServerURL(serverURL)}`,
       `-X github.com/nemanjan00/reverse-shell-listener/client.defaultTags=${sanitizeLdflagValue(tags)}`,
-      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultToken=${sanitizeLdflagValue(config.BUILD_TOKEN)}`,
+      `-X github.com/nemanjan00/reverse-shell-listener/client.defaultToken=${sanitizeLdflagToken(config.BUILD_TOKEN)}`,
     ].join(" ");
 
     const env = {
@@ -85,6 +95,43 @@ function buildClient(target, serverURL, tags) {
       resolve({ outPath, outName, tmp });
     });
   });
+}
+
+// Stream a built binary to the response, cleaning up the temp directory even if
+// the client disconnects or the response errors before/during the transfer.
+async function sendBuiltClient(req, res, target, serverURL, tags) {
+  let tmp = null;
+  let cleaned = false;
+  function cleanup() {
+    if (cleaned) return;
+    cleaned = true;
+    if (tmp) {
+      try {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  req.on("close", cleanup);
+
+  try {
+    const { outPath, outName, tmp: buildTmp } = await buildClient(target, serverURL, tags);
+    tmp = buildTmp;
+    if (res.destroyed) {
+      cleanup();
+      return;
+    }
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${outName}"`);
+    const stream = fs.createReadStream(outPath);
+    stream.on("error", cleanup);
+    stream.on("close", cleanup);
+    stream.pipe(res);
+  } catch (err) {
+    cleanup();
+    throw err;
+  }
 }
 
 // Parse os=...&arch=... query params (or ?target=linux-arm-7 directly) into a
@@ -146,15 +193,12 @@ export function dlRouter() {
     const tags = String(req.query.tags || "");
 
     try {
-      const { outPath, outName, tmp } = await buildClient(target, serverURL, tags);
-      res.setHeader("Content-Type", "application/octet-stream");
-      res.setHeader("Content-Disposition", `attachment; filename="${outName}"`);
-      const stream = fs.createReadStream(outPath);
-      stream.pipe(res);
-      stream.on("close", () => fs.rmSync(tmp, { recursive: true, force: true }));
+      await sendBuiltClient(req, res, target, serverURL, tags);
     } catch (err) {
       console.error("[dl]   failed:", err.message);
-      res.status(500).json({ error: "build failed", detail: err.message });
+      if (!res.headersSent) {
+        res.status(500).json({ error: "build failed", detail: err.message });
+      }
     }
   });
 
@@ -176,8 +220,8 @@ export function dlRouter() {
     }
 
     // Build the /dl URL the bootstrap script will fetch. We pass the same
-    // query params through (minus the token, which the script re-adds from
-    // an env var so it doesn't appear in the DuckyScript).
+    // query params through (including the token, since the bootstrap script is
+    // a one-liner that has no other way to authenticate).
     const params = new URLSearchParams({ token, os: osName });
     if (req.query.arch) params.set("arch", req.query.arch);
     if (req.query.tags) params.set("tags", req.query.tags);
@@ -220,15 +264,12 @@ export function buildRouter() {
     const tags = String(req.query.tags || "");
 
     try {
-      const { outPath, outName, tmp } = await buildClient(target, serverURL, tags);
-      res.setHeader("Content-Type", "application/octet-stream");
-      res.setHeader("Content-Disposition", `attachment; filename="${outName}"`);
-      const stream = fs.createReadStream(outPath);
-      stream.pipe(res);
-      stream.on("close", () => fs.rmSync(tmp, { recursive: true, force: true }));
+      await sendBuiltClient(req, res, target, serverURL, tags);
     } catch (err) {
       console.error("[build] failed:", err.message);
-      res.status(500).json({ error: "build failed", detail: err.message });
+      if (!res.headersSent) {
+        res.status(500).json({ error: "build failed", detail: err.message });
+      }
     }
   });
 

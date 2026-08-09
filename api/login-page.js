@@ -34,8 +34,8 @@ export function loginPage({ error } = {}) {
          border:none;border-radius:8px;font-family:inherit;font-weight:700;
          font-size:14px;padding:11px;cursor:pointer}
   button:hover{filter:brightness(1.1)}
-  .err{margin-top:16px;color:var(--red);font-size:12px;text-align:center;
-       ${error ? "" : "display:none"}}
+  .err{margin-top:16px;color:var(--red);font-size:12px;text-align:center}
+  .err.hidden{display:none}
 </style>
 </head>
 <body>
@@ -48,7 +48,7 @@ export function loginPage({ error } = {}) {
     <label for="password">Password</label>
     <input id="password" name="password" type="password" autocomplete="current-password" />
     <button type="submit">Sign in</button>
-    <div class="err">Invalid credentials</div>
+    <div class="err ${error ? "" : "hidden"}">Invalid credentials</div>
   </form>
 </body>
 </html>`;

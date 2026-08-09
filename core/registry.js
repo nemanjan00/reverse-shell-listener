@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import { Session } from "./session.js";
 
@@ -10,11 +11,10 @@ class Registry extends EventEmitter {
   constructor() {
     super();
     this._sessions = new Map();
-    this._seq = 0;
   }
 
   create({ transport, remote, backend }) {
-    const id = `s${++this._seq}`;
+    const id = crypto.randomUUID();
     const session = new Session({ id, transport, remote, backend });
     this._sessions.set(id, session);
 

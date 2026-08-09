@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import config from "../config.js";
 
 const COOKIE = "rsl_session";
+const CSRF_COOKIE = "rsl_csrf";
 const TTL_MS = 12 * 60 * 60 * 1000; // 12h sessions
 
 // A per-process secret unless one is pinned via AUTH_SECRET. Pinning keeps
@@ -33,25 +34,31 @@ export function checkCredentials(user, pass) {
   );
 }
 
+function parsePayload(token) {
+  if (!token || typeof token !== "string") return null;
+  const dot = token.lastIndexOf(".");
+  if (dot < 0) return null;
+  const payload = token.slice(0, dot);
+  const mac = token.slice(dot + 1);
+  if (!safeEqual(mac, sign(payload))) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (typeof parsed.exp !== "number" || Date.now() >= parsed.exp) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 // Stateless signed session token: base64url(payload).hmac
 export function issueToken(user) {
-  const payload = base64url(JSON.stringify({ u: user, exp: Date.now() + TTL_MS }));
-  return `${payload}.${sign(payload)}`;
+  const csrf = crypto.randomBytes(16).toString("base64url");
+  const payload = base64url(JSON.stringify({ u: user, exp: Date.now() + TTL_MS, c: csrf }));
+  return { token: `${payload}.${sign(payload)}`, csrf };
 }
 
 function verifyToken(token) {
-  if (!token || typeof token !== "string") return false;
-  const dot = token.lastIndexOf(".");
-  if (dot < 0) return false;
-  const payload = token.slice(0, dot);
-  const mac = token.slice(dot + 1);
-  if (!safeEqual(mac, sign(payload))) return false;
-  try {
-    const { exp } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    return typeof exp === "number" && Date.now() < exp;
-  } catch {
-    return false;
-  }
+  return parsePayload(token) !== null;
 }
 
 function sign(data) {
@@ -80,12 +87,30 @@ export function authorized(req) {
   return verifyToken(cookies[COOKIE]);
 }
 
+export function getTokenPayload(req) {
+  const cookies = parseCookies(req.headers && req.headers.cookie);
+  return parsePayload(cookies[COOKIE]);
+}
+
 export function sessionCookie(token, secure) {
   const attrs = [
     `${COOKIE}=${token}`,
     "Path=/",
     "HttpOnly",
-    "SameSite=Lax",
+    "SameSite=Strict",
+    `Max-Age=${Math.floor(TTL_MS / 1000)}`,
+  ];
+  if (secure) attrs.push("Secure");
+  return attrs.join("; ");
+}
+
+export function csrfCookie(token, secure) {
+  const payload = parsePayload(token);
+  const csrf = payload && payload.c ? payload.c : "";
+  const attrs = [
+    `${CSRF_COOKIE}=${csrf}`,
+    "Path=/",
+    "SameSite=Strict",
     `Max-Age=${Math.floor(TTL_MS / 1000)}`,
   ];
   if (secure) attrs.push("Secure");
@@ -93,7 +118,24 @@ export function sessionCookie(token, secure) {
 }
 
 export function clearCookie() {
-  return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return `${COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+}
+
+export function clearCsrfCookie() {
+  return `${CSRF_COOKIE}=; Path=/; SameSite=Strict; Max-Age=0`;
+}
+
+// Double-submit CSRF protection: the dashboard reads the non-HttpOnly
+// rsl_csrf cookie and sends it back as X-CSRF-Token on mutating requests.
+export function csrf(req, res, next) {
+  if (req.method === "GET" || req.method === "HEAD") return next();
+  const payload = getTokenPayload(req);
+  const header = req.headers["x-csrf-token"];
+  const cookies = parseCookies(req.headers && req.headers.cookie);
+  if (!payload || !header || header !== payload.c || header !== cookies[CSRF_COOKIE]) {
+    return res.status(403).json({ error: "invalid csrf token" });
+  }
+  next();
 }
 
 // Middleware guarding the dashboard, REST API and static files. NOTE:

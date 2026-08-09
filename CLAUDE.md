@@ -56,18 +56,29 @@ Auth is **mandatory**. `api/auth.js:requireAuth()` calls `process.exit(1)` if
 `AUTH_USER` / `AUTH_PASS` are unset. Never re-introduce the "no-auth fallback"
 path — the server must refuse to start without operator credentials.
 
-Authentication is via a signed `rsl_session` cookie (HMAC-SHA256, 12h TTL)
-issued at `POST /login`. The cookie gates:
+Authentication is via a signed `rsl_session` cookie (HMAC-SHA256, 12h TTL,
+`HttpOnly`, `SameSite=Strict`) issued at `POST /login`. The cookie gates:
 
-- the dashboard + static assets (via `requireAuth` middleware at server.js:59),
+- the dashboard + static assets (via `requireAuth` middleware),
 - all `/api/*` REST routes (mounted after `requireAuth`),
-- the browser WS endpoints `/api/ws/sessions` and `/api/ws/session/:id` —
-  express-ws upgrades **bypass** `app.use()` middleware, so each handler
-  re-checks the cookie via `authorized(req)` and closes the socket with `1008`
-  on failure.
+- the browser WS endpoints `/api/ws/sessions`, `/api/ws/session/:id`, and
+  `/api/ws/log` — express-ws upgrades **bypass** `app.use()` middleware, so each
+  handler re-checks the cookie via `authorized(req)` and closes the socket with
+  `1008` on failure.
 
-Deliberately unauthenticated (implants cannot carry operator credentials):
-`/webshell/*`, `/mux`, and the raw TCP/TLS reverse-shell listener ports.
+Mutating REST endpoints also require a double-submit CSRF token: login sets a
+non-`HttpOnly` `rsl_csrf` cookie, and the frontend must send its value in the
+`X-CSRF-Token` header on `POST`/`DELETE`/etc.
+
+Implant-facing endpoints cannot use operator session cookies, so they are gated
+by the shared `BUILD_TOKEN` when it is set: `/mux`, `/dl`, and `/webshell/*`.
+`/webshell/register` accepts the token via `?token=` or `X-RSL-Token`; poll and
+output require it on every request. The raw TCP and TLS reverse-shell listeners
+are unauthenticated by definition.
+
+Security headers (`X-Content-Type-Options`, `X-Frame-Options`,
+`Referrer-Policy`, CSP) are set on every response; HSTS is added only when the
+request is detected as HTTPS (e.g., behind an HTTPS reverse proxy).
 
 ## Conventions
 
