@@ -1,154 +1,92 @@
-// Express init
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import express from "express";
+import expressWs from "express-ws";
 
-var express = require('express');
+import config from "./config.js";
+import {
+  requireAuth,
+  authEnabled,
+  authorized,
+  checkCredentials,
+  issueToken,
+  sessionCookie,
+  clearCookie,
+} from "./api/auth.js";
+import { loginPage } from "./api/login-page.js";
+import { restRouter } from "./api/rest.js";
+import { registerWs } from "./api/ws.js";
+import { webshellRouter } from "./transports/webshell.js";
+import { startTcp } from "./transports/tcp.js";
+import { startTls } from "./transports/tls.js";
+import { registerMux } from "./transports/mux.js";
 
-var app = express();
-var expressWs = require('express-ws')(app);
+const here = path.dirname(fileURLToPath(import.meta.url));
+const isSecure = (req) =>
+  req.secure || req.headers["x-forwarded-proto"] === "https";
 
-var config = require('./config')(app);
+const app = express();
+// express-ws attaches the WebSocket upgrade handler to THIS app's HTTP server,
+// so the dashboard, REST, static assets, all WebSocket endpoints and the HTTP
+// shell transports share one host and one port.
+expressWs(app);
 
-// Routing
+// --- Shell-facing transports (UNAUTHENTICATED) -----------------------------
+// These are where targets connect; they must not require operator credentials.
+app.use("/webshell", webshellRouter()); // HTTP beacon transport
+registerMux(app); // ws /mux — multiplexed protobuf shell transport
 
-app.use(express.static('public'));
-
-app.use('/', require('./routes')(app));
-
-// Start
-
-app.listen(app.get('PORT'), function () {
-	console.log('PPS app listening on port '+app.get('PORT')+'!');
+// --- Auth bootstrap (unauthenticated by necessity) -------------------------
+app.get("/login", (req, res) => {
+  if (authorized(req)) return res.redirect("/");
+  res.type("html").send(loginPage({ error: req.query.error }));
+});
+app.post("/login", express.urlencoded({ extended: false }), (req, res) => {
+  if (!authEnabled()) return res.redirect("/");
+  const { username, password } = req.body || {};
+  if (checkCredentials(username, password)) {
+    res.setHeader("Set-Cookie", sessionCookie(issueToken(username), isSecure(req)));
+    return res.redirect("/");
+  }
+  res.redirect("/login?error=1");
+});
+app.post("/logout", (req, res) => {
+  res.setHeader("Set-Cookie", clearCookie());
+  res.redirect("/login");
 });
 
-var net = require('net');
+// --- Everything past here requires an operator session ---------------------
+app.use(requireAuth());
 
-var id = 0;
+// Browser <-> server WebSocket endpoints (self-authenticate: express-ws
+// upgrades bypass app.use middleware).
+registerWs(app);
 
-var servers = [];
-app.set("servers", servers);
+// REST API.
+app.use("/api", restRouter());
 
-var messagesByServer = {};
-app.set("messagesByServer", messagesByServer);
+// Static dashboard (built bundle lives in public/dist).
+app.use(express.static(path.join(here, "public")));
 
-var server = net.createServer(function(socket) {
-	var currentId = id+"";
-	var currentIP = socket.address().address+"";
-
-	socket.on("data", function(data){
-		if(messagesByServer[currentId] == undefined){
-			messagesByServer[currentId] = [];
-		}
-
-		messagesByServer[currentId].push(data);
-
-		app.set("messagesByServer", messagesByServer);
-
-		var socketsByServer = app.get("socketsByServer");
-
-		if(socketsByServer[currentId] == undefined){
-			socketsByServer[currentId] = [];
-		}
-
-		socketsByServer[currentId].filter(function(ws){
-			try{
-				ws.send(JSON.stringify({
-					message: "data",
-					data: data+""
-				}));
-
-				return true;
-			}catch(e){
-				return false;
-			}
-		});
-
-		app.set("socketsByServer", socketsByServer);
-	});
-
-	socket.on("error", function(data){
-		if(messagesByServer[currentId] == undefined){
-			messagesByServer[currentId] = [];
-		}
-
-		messagesByServer[currentId].push("connection closed");
-
-		app.set("messagesByServer", messagesByServer);
-
-		var socketsByServer = app.get("socketsByServer");
-
-		if(socketsByServer[currentId] == undefined){
-			socketsByServer[currentId] = [];
-		}
-
-		socketsByServer[currentId].filter(function(ws){
-			try{
-				ws.send(JSON.stringify({
-					message: "data",
-					data: "connection closed"
-				}));
-
-				return true;
-			}catch(e){
-				return false;
-			}
-		});
-
-		app.set("socketsByServer", socketsByServer);
-
-		var servers = app.get("servers");
-
-		servers[currentId].dead = true;
-
-
-		var sockets = app.get("sockets");
-
-		sockets.filter(function(ws){
-			try{
-				ws.send(JSON.stringify({
-					message: "newServer",
-					id: currentId,
-					ip: currentIP,
-					dead: true
-				}));
-
-				return true;
-			}catch(e){
-				return false;
-			}
-		});
-
-		app.set("sockets", sockets);
-	});
-
-	servers.push({
-		socket: socket,
-		id: id,
-		ip: socket.address().address,
-		dead: false
-	});
-
-	app.set("servers", servers);
-
-	var sockets = app.get("sockets");
-
-	sockets.filter(function(ws){
-		try{
-			ws.send(JSON.stringify({
-				message: "newServer",
-				id: id,
-				ip: socket.address().address,
-				dead: false
-			}));
-
-			return true;
-		}catch(e){
-			return false;
-		}
-	});
-
-	app.set("sockets", sockets);
-
-	id++;
+// SPA fallback for qrp's history routing.
+app.get(/.*/, (req, res, next) => {
+  if (req.path.startsWith("/api") || req.path.startsWith("/webshell")) {
+    return next();
+  }
+  res.sendFile(path.join(here, "public", "index.html"));
 });
 
-server.listen(1337, '0.0.0.0');
+app.listen(config.PORT, config.HOST, () => {
+  console.log(`[http] dashboard + API on http://${config.HOST}:${config.PORT}`);
+});
 
+// Raw socket reverse-shell listeners.
+startTcp();
+startTls();
+
+if (config.ENABLE_WEBSHELL) {
+  console.log(`[web]  webshell transport at /webshell (port ${config.PORT})`);
+}
+if (config.ENABLE_MUX) {
+  console.log(`[mux]  multiplexed shell transport at ws://…:${config.PORT}/mux`);
+}

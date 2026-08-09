@@ -1,59 +1,15 @@
-<!DOCTYPE html>
-<html lang="en" ng-app="top.nemanja.reverse-shell-listener">
-	<head>
-		<meta charset="utf-8">
-		<meta http-equiv="X-UA-Compatible" content="IE=edge">
-		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
-		<meta name="description" content="">
-		<meta name="author" content="">
-		<link rel="icon" href="../../favicon.ico">
-
-		<title>Reverse Shell Listener</title>
-	</head>
-
-	<body ng-controller="MainController">
-
-		<nav class="navbar navbar-inverse navbar-fixed-top">
-			<div class="container-fluid">
-				<div class="navbar-header">
-					<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
-						<span class="sr-only">Toggle navigation</span>
-						<span class="icon-bar"></span>
-						<span class="icon-bar"></span>
-						<span class="icon-bar"></span>
-					</button>
-					<a class="navbar-brand" href="#">Reverse Shell Listener</a>
-				</div>
-				<div id="navbar" class="navbar-collapse collapse">
-					<ul class="nav navbar-nav navbar-right">
-						<li><a href="#"><i class="fa fa-sign-out" aria-hidden="true"></i> Log out</a></li>
-					</ul>
-				</div>
-			</div>
-		</nav>
-
-		<div class="container-fluid">
-			<div class="row">
-				<div class="col-sm-3 col-md-2 sidebar">
-					<ul class="nav nav-sidebar">
-						<li class="header"><a>Shell list</a></li>
-						<li ng-class="{active: currentShellId == key}" ng-repeat="(key, shell) in shells | notDead"><a ng-click="selectShell(key)">{{shell.ip}} #{{key}}</a></li>
-						<li ng-show="!haveNonDeadShells()"><a>No shells</a></li>
-						<li class="header"><a>Offline shell list</a></li>
-						<li ng-class="{active: currentShellId == key}" ng-repeat="(key, shell) in shells | dead"><a ng-click="selectShell(key)">{{shell.ip}} #{{key}}</a></li>
-						<li ng-show="!haveDeadShells()"><a>No shells</a></li>
-					</ul>
-				</div>
-				<div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
-					<h1 class="page-header">Shell - {{currentShell.ip}} <span ng-show="shellSelected()">#{{currentShellId}}</span></h1>
-
-					<div class="terminal-container fluid" angular-terminal="main" prompt=" " ng-show="!shellSelected()" greetings=" <- Please, select shell "></div>
-					<div ng-repeat="(key, shell) in shells" class="terminal-container fluid" angular-terminal="main-{{key}}" ng-show="currentShellId == key" greetings=""></div>
-				</div>
-			</div>
-		</div>
-
-		<script src="/assets/bundle.js"></script>
-	</body>
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Reverse Shell Listener</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23bd93f9'/%3E%3Ctext x='16' y='23' font-size='15' font-family='monospace' font-weight='bold' text-anchor='middle' fill='%2321222c'%3E%C2%BB_%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/dist/app.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/dist/app.js"></script>
+  </body>
 </html>

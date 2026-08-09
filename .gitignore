@@ -8,3 +8,17 @@
 
 /node_modules
 
+# Build output
+
+/public/dist
+
+# Generated TLS certs
+
+/certs
+
+# Go client build artifacts
+
+/client/rsl-client
+/client/rsl-client-*
+/client/*.exe
+
