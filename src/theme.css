@@ -149,6 +149,27 @@ body {
   min-height: 0;
 }
 
+.search-wrap {
+  padding: 8px 10px 0;
+}
+.search {
+  width: 100%;
+  background: var(--d-bg);
+  border: 1px solid var(--qrp-border);
+  border-radius: 8px;
+  color: var(--d-fg);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+}
+.search:focus {
+  border-color: var(--d-purple);
+}
+.search::placeholder {
+  color: var(--d-comment);
+}
+
 .list-group-label {
   color: var(--d-comment);
   font-size: 10px;

@@ -43,12 +43,28 @@ const app = state({
   buildTags: "",
   building: false,
   hostDetailsId: null, // which host is shown in the details overlay
+  search: "", // sidebar filter text
 });
 
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
-const liveSessions = () => app.sessions.filter((s) => s.alive);
-const deadSessions = () => app.sessions.filter((s) => !s.alive);
-const liveHosts = () => app.hosts.filter((h) => h.alive);
+
+const hostMatches = (h) => {
+  const q = app.search.trim().toLowerCase();
+  if (!q) return true;
+  return [h.label, h.hostname, h.username, h.os, h.arch, h.tags, h.remote, h.id]
+    .filter(Boolean)
+    .some((v) => String(v).toLowerCase().includes(q));
+};
+const sessionMatches = (s) => {
+  const q = app.search.trim().toLowerCase();
+  if (!q) return true;
+  return [s.remote, s.transport, s.id].filter(Boolean).some((v) =>
+    String(v).toLowerCase().includes(q)
+  );
+};
+const liveSessions = () => app.sessions.filter((s) => s.alive && sessionMatches(s));
+const deadSessions = () => app.sessions.filter((s) => !s.alive && sessionMatches(s));
+const liveHosts = () => app.hosts.filter((h) => h.alive && hostMatches(h));
 
 const wsUrl = (path) =>
   (location.protocol === "https:" ? "wss://" : "ws://") + location.host + path;
@@ -574,6 +590,17 @@ const Sidebar = () =>
       class: () => "sidebar " + (app.sidebarOpen ? "open" : ""),
     },
     Brand(),
+    el(
+      "div",
+      { class: "search-wrap" },
+      el("input", {
+        type: "text",
+        class: "search",
+        placeholder: "Filter hosts / sessions…",
+        value: () => app.search,
+        oninput: (e) => (app.search = e.target.value),
+      })
+    ),
     el(
       "div",
       { class: "session-list" },
