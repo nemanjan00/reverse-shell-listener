@@ -39,9 +39,10 @@ const config = {
   // dashboard login — for badUSB scripts). When unset, /dl is disabled.
   BUILD_TOKEN: process.env.BUILD_TOKEN || "",
 
-  // HTTP CONNECT proxy. When PROXY_TOKEN is set, the proxy handler is attached
-  // to the same HTTP server as the dashboard/API (no extra port). The Basic auth
+  // HTTP CONNECT proxy. When PROXY_TOKEN is set, the server listens on
+  // PROXY_PORT and forwards connections through a mux host. The Basic auth
   // username must be a valid host id; the password must match PROXY_TOKEN.
+  PROXY_PORT: num(process.env.PROXY_PORT, 3128),
   PROXY_TOKEN: process.env.PROXY_TOKEN || "",
 };
 
