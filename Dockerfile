@@ -29,12 +29,15 @@ RUN apk add --no-cache openssl
 # the mux client on demand (see /api/build). Keep GOROOT/GOPATH stable.
 ENV GOROOT=/usr/local/go \
     GOPATH=/root/go \
+    GOCACHE=/root/.cache/go-build \
     PATH=/usr/local/go/bin:/root/go/bin:$PATH
 COPY --from=go /usr/local/go /usr/local/go
 
-# Pre-warmed Go module cache so /api/build and /dl don't re-download deps on
-# their first request.
+# Pre-warmed Go caches so /api/build and /dl don't re-download deps and can
+# reuse compiled packages from the build above. Cross-compiles for other OS/arch
+# targets still compile from scratch, but the module cache is shared.
 COPY --from=go /go/pkg/mod /root/go/pkg/mod
+COPY --from=go /root/.cache/go-build /root/.cache/go-build
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
