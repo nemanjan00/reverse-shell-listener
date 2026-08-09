@@ -1849,7 +1849,7 @@ const Toolbar = () =>
           )
       ),
       when(
-        () => current() && current().upgraded,
+        () => current() && current().upgraded && current().transport !== "mux",
         () => el("span", { class: "badge tls" }, "PTY")
       )
     ),
