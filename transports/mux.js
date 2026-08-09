@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import protobuf from "protobufjs";
 
@@ -9,11 +10,36 @@ import { hosts } from "../core/hosts.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PROTO_VERSION = 1;
 
+// Directory holding per-OS autoexec scripts. The server reads
+// autoexec/<os>.sh (or .ps1 for windows) on host connect and sends the
+// contents to the client in an AutoExec frame so it can run a
+// persistence/setup script without hardcoding it in the binary. Mounted as
+// a volume in production (AUTOEXEC_DIR env var).
+const AUTOEXEC_DIR = process.env.AUTOEXEC_DIR
+  ? path.resolve(process.env.AUTOEXEC_DIR)
+  : path.resolve(here, "..", "autoexec");
+
 // Load the protobuf schema once at startup (synchronous — no codegen step).
 const root = protobuf.loadSync(path.resolve(here, "..", "proto", "mux.proto"));
 const Frame = root.lookupType("mux.Frame");
 
 const encode = (obj) => Buffer.from(Frame.encode(Frame.create(obj)).finish());
+
+// Read the autoexec script for a given os, if any. Returns null if no file.
+function readAutoExec(osName) {
+  if (!osName) return null;
+  const isWindows = osName === "windows" || osName === "win";
+  const ext = isWindows ? "ps1" : "sh";
+  const file = path.resolve(AUTOEXEC_DIR, `${osName}.${ext}`);
+  if (!file.startsWith(AUTOEXEC_DIR + path.sep)) return null;
+  if (!fs.existsSync(file)) return null;
+  const script = fs.readFileSync(file);
+  return {
+    os: osName,
+    shell: isWindows ? "powershell" : "sh",
+    script,
+  };
+}
 
 // One connected Go client. Owns a set of channels; each opened channel becomes
 // a Session in the shared registry.
@@ -149,6 +175,13 @@ export function registerMux(app) {
 
       if (kind === "hello") {
         if (host) return;
+        // Token auth: if BUILD_TOKEN is set, the client's Hello must carry it.
+        // A missing/mismatched token closes the connection immediately.
+        if (config.BUILD_TOKEN && frame.hello.token !== config.BUILD_TOKEN) {
+          console.warn(`[mux]  rejected host from ${remote}: bad or missing token`);
+          ws.close(1008, "unauthorized");
+          return;
+        }
         host = new Host(ws, remote);
         host.hello = {
           hostname: frame.hello.hostname,
@@ -160,6 +193,15 @@ export function registerMux(app) {
         };
         hosts.add(host);
         console.log(`[mux]  host ${host.id} connected: ${host.label()} (${remote})`);
+
+        // Send the per-OS autoexec script if one exists. The client runs it
+        // locally (persistence / setup) — not as a shell channel.
+        const ae = readAutoExec(frame.hello.os);
+        if (ae) {
+          console.log(`[mux]  sending autoexec for ${frame.hello.os} to ${host.id}`);
+          host.send({ autoExec: ae });
+        }
+
         // Auto-open one shell so the host is immediately usable.
         host.openChannel();
         return;

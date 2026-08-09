@@ -8,6 +8,9 @@ services:
       - AUTH_USER=${AUTH_USER}
       - AUTH_PASS=${AUTH_PASS}
       - AUTH_SECRET=${AUTH_SECRET}
+      - BUILD_TOKEN=${BUILD_TOKEN}
+    volumes:
+      - /root/reverse-shell-listener/autoexec:/app/autoexec:ro
     networks:
       - default
     ports:

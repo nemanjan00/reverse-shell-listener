@@ -44,6 +44,9 @@ const app = state({
   building: false,
   hostDetailsId: null, // which host is shown in the details overlay
   search: "", // sidebar filter text
+  paletteOpen: false, // Ctrl+K command palette
+  paletteQuery: "",
+  paletteIndex: 0, // selected row in the palette
 });
 
 const current = () => app.sessions.find((s) => s.id === app.currentId) || null;
@@ -65,6 +68,86 @@ const sessionMatches = (s) => {
 const liveSessions = () => app.sessions.filter((s) => s.alive && sessionMatches(s));
 const deadSessions = () => app.sessions.filter((s) => !s.alive && sessionMatches(s));
 const liveHosts = () => app.hosts.filter((h) => h.alive && hostMatches(h));
+
+// --- Command palette (Ctrl+K) ---------------------------------------------
+// One ranked list of every host + session, filtered by the palette query.
+// Hosts come first (they're the "containers"), then live sessions, then dead.
+function paletteItems() {
+  const q = app.paletteQuery.trim().toLowerCase();
+  const match = (fields) =>
+    !q || fields.filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+  const items = [];
+  for (const h of app.hosts) {
+    if (!match([h.label, h.hostname, h.username, h.os, h.arch, h.tags, h.remote, h.id])) continue;
+    items.push({
+      kind: "host",
+      id: h.id,
+      title: h.label || h.hostname || h.remote,
+      sub: `host · ${h.username || "?"}@${h.os}/${h.arch} · ${h.channels}ch`,
+      action: () => openHostDetails(h.id),
+    });
+  }
+  for (const s of app.sessions) {
+    if (!match([s.remote, s.transport, s.id])) continue;
+    items.push({
+      kind: "session",
+      id: s.id,
+      title: s.remote,
+      sub: `${s.transport} · ${s.id}${s.alive ? "" : " · dead"}`,
+      action: () => selectSession(s.id),
+      dead: !s.alive,
+    });
+  }
+  return items;
+}
+
+function openPalette() {
+  app.paletteOpen = true;
+  app.paletteQuery = "";
+  app.paletteIndex = 0;
+}
+
+function closePalette() {
+  app.paletteOpen = false;
+}
+
+function paletteRunSelected() {
+  const items = paletteItems();
+  const it = items[app.paletteIndex];
+  if (it) {
+    it.action();
+    closePalette();
+  }
+}
+
+function paletteMove(delta) {
+  const items = paletteItems();
+  if (!items.length) return;
+  app.paletteIndex = (app.paletteIndex + delta + items.length) % items.length;
+}
+
+window.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    if (app.paletteOpen) closePalette();
+    else openPalette();
+    return;
+  }
+  if (!app.paletteOpen) return;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closePalette();
+  } else if (e.key === "ArrowDown") {
+    e.preventDefault();
+    paletteMove(1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    paletteMove(-1);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    paletteRunSelected();
+  }
+});
 
 const wsUrl = (path) =>
   (location.protocol === "https:" ? "wss://" : "ws://") + location.host + path;
@@ -587,6 +670,98 @@ const kv = (k, v) =>
     el("span", { class: "v" }, String(v))
   );
 
+const CommandPalette = () =>
+  when(
+    () => app.paletteOpen,
+    () => {
+      const items = paletteItems();
+      return el(
+        "div",
+        {
+          class: "palette-overlay",
+          onclick: (e) => {
+            if (e.target.classList.contains("palette-overlay")) closePalette();
+          },
+        },
+        el(
+          "div",
+          { class: "palette" },
+          el(
+            "div",
+            { class: "palette-input-wrap" },
+            el("input", {
+              type: "text",
+              class: "palette-input",
+              placeholder: "Jump to host or session…",
+              value: () => app.paletteQuery,
+              oninput: (e) => {
+                app.paletteQuery = e.target.value;
+                app.paletteIndex = 0;
+              },
+              onkeydown: (e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  paletteMove(1);
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  paletteMove(-1);
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  paletteRunSelected();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  closePalette();
+                }
+              },
+              autofocus: true,
+            })
+          ),
+          el(
+            "div",
+            { class: "palette-list" },
+            when(
+              () => items.length === 0,
+              () => el("div", { class: "palette-empty" }, "No matches")
+            ),
+            list(
+              () => items,
+              (it) => it.kind + ":" + it.id,
+              (it, i) =>
+                el(
+                  "div",
+                  {
+                    class: () =>
+                      "palette-row " +
+                      it.kind +
+                      (it.dead ? " dead" : "") +
+                      (i() === app.paletteIndex ? " active" : ""),
+                    onclick: () => {
+                      it.action();
+                      closePalette();
+                    },
+                  },
+                  el("span", { class: "palette-kind" }, it.kind === "host" ? "»_" : "$"),
+                  el(
+                    "div",
+                    { class: "palette-meta" },
+                    el("div", { class: "palette-title" }, it.title),
+                    el("div", { class: "palette-sub" }, it.sub)
+                  )
+                )
+            )
+          ),
+          el(
+            "div",
+            { class: "palette-footer" },
+            el("span", {}, "↑↓ navigate"),
+            el("span", {}, "↵ open"),
+            el("span", {}, "esc close")
+          )
+        )
+      );
+    }
+  );
+
 const Sidebar = () =>
   el(
     "aside",
@@ -775,7 +950,7 @@ const SidebarBackdrop = () =>
 
 // --- Boot ------------------------------------------------------------------
 mount(document.getElementById("app"), () =>
-  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails())
+  el("div", { class: "app" }, Sidebar(), SidebarBackdrop(), Main(), HostDetails(), CommandPalette())
 );
 
 connectSessionsStream();
