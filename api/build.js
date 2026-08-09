@@ -90,6 +90,11 @@ function buildClient(target, serverURL, tags) {
     execFile("go", args, { cwd: clientDir, env, maxBuffer: 50 * 1024 * 1024 }, (err) => {
       if (err) {
         fs.rmSync(tmp, { recursive: true, force: true });
+        if (err.code === "ENOENT" || /command not found/i.test(err.message)) {
+          return reject(
+            new Error("Go toolchain not found; install Go or use the Docker image to build clients")
+          );
+        }
         return reject(err);
       }
       resolve({ outPath, outName, tmp });
