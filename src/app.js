@@ -101,7 +101,7 @@ const termCtl = (() => {
 
     term = new Terminal({
       theme: draculaTheme,
-      fontFamily: '"JetBrains Mono", "Fira Code", ui-monospace, Menlo, monospace',
+      fontFamily: '"Hack Nerd Font Mono", "JetBrains Mono", ui-monospace, Menlo, monospace',
       fontSize: 13,
       cursorBlink: true,
       convertEol: false,
@@ -171,6 +171,10 @@ async function killCurrent() {
   const c = current();
   if (!c) return;
   await fetch(`/api/sessions/${c.id}/kill`, { method: "POST" }).catch(() => {});
+}
+
+async function clearDeadSessions() {
+  await fetch("/api/sessions/clear-dead", { method: "POST" }).catch(() => {});
 }
 
 function upgradeCurrent() {
@@ -458,7 +462,20 @@ const Sidebar = () =>
         "div",
         { class: "list-group-label" },
         el("span", {}, "Offline"),
-        el("span", {}, () => `${deadSessions().length}`)
+        el("span", {}, () => `${deadSessions().length}`),
+        when(
+          () => deadSessions().length > 0,
+          () =>
+            el(
+              "button",
+              {
+                class: "btn micro clear-dead",
+                onclick: clearDeadSessions,
+                title: "Remove all offline sessions",
+              },
+              "Clear"
+            )
+        )
       ),
       list(deadSessions, (s) => s.id, sessionRow),
       when(

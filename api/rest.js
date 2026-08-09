@@ -36,6 +36,18 @@ export function restRouter() {
     res.json({ ok: true });
   });
 
+  // Drop every dead (offline) session in one shot.
+  router.post("/sessions/clear-dead", (req, res) => {
+    let removed = 0;
+    for (const s of registry.list()) {
+      if (!s.alive) {
+        registry.remove(s.id);
+        removed++;
+      }
+    }
+    res.json({ ok: true, removed });
+  });
+
   // Inject the dumb-shell -> PTY bash upgrade sequence.
   router.post("/sessions/:id/upgrade", (req, res) => {
     const s = registry.get(req.params.id);

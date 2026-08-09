@@ -14,7 +14,7 @@ export function loginPage({ error } = {}) {
   *{box-sizing:border-box}
   html,body{height:100%;margin:0}
   body{background:var(--bg);color:var(--fg);
-       font-family:"JetBrains Mono","Fira Code",ui-monospace,Menlo,monospace;
+        font-family:"Hack Nerd Font Mono","JetBrains Mono",ui-monospace,Menlo,monospace;
        display:grid;place-items:center}
   .card{width:340px;background:var(--darker);border:1px solid var(--border);
         border-radius:14px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.45)}

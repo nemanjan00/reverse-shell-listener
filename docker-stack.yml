@@ -7,6 +7,7 @@ services:
     environment:
       - AUTH_USER=${AUTH_USER}
       - AUTH_PASS=${AUTH_PASS}
+      - AUTH_SECRET=${AUTH_SECRET}
     networks:
       - default
     ports:

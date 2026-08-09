@@ -144,6 +144,9 @@ Windows PTY is not included in this build.
 | `/api/sessions/:id/upgrade`      | POST   | Inject dumb-shell → PTY bash sequence    |
 | `/api/sessions/:id/resize`       | POST   | Resize session / send SIGWINCH           |
 | `/api/sessions/:id`              | DELETE | Drop session from registry               |
+| `/api/sessions/clear-dead`       | POST   | Drop all offline sessions                 |
+| `/api/build/targets`            | GET    | List available cross-compile targets      |
+| `/api/build/client`             | GET    | Build + download Go client (target, server, tags) |
 | `/api/hosts`                     | GET    | List mux hosts                           |
 | `/api/hosts/:id`                 | GET    | Host metadata                            |
 | `/api/hosts/:id/shells`          | POST   | Ask host to open a new PTY shell         |

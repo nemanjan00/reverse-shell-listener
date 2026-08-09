@@ -35,8 +35,37 @@
   --qrp-gap: 12px;
   --qrp-pad: 12px;
   --qrp-shadow: none;
-  --qrp-font: "JetBrains Mono", "Fira Code", ui-monospace, "SF Mono", Menlo,
-    Consolas, monospace;
+  --qrp-font: "Hack Nerd Font Mono", "Hack Nerd Font", "JetBrains Mono",
+    "Fira Code", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@font-face {
+  font-family: "Hack Nerd Font Mono";
+  src: url("../public/fonts/HackNerdFontMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hack Nerd Font Mono";
+  src: url("../public/fonts/HackNerdFontMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hack Nerd Font";
+  src: url("../public/fonts/HackNerdFont-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hack Nerd Font";
+  src: url("../public/fonts/HackNerdFont-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
 * {
@@ -128,6 +157,11 @@ body {
   padding: 14px 10px 6px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.list-group-label .clear-dead {
+  margin-left: auto;
 }
 
 .session {
