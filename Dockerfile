@@ -35,7 +35,6 @@ COPY --from=go /usr/local/go /usr/local/go
 # Pre-warmed Go module cache so /api/build and /dl don't re-download deps on
 # their first request.
 COPY --from=go /go/pkg/mod /root/go/pkg/mod
-COPY --from=go /go/pkg/sumdb /root/go/pkg/sumdb
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
