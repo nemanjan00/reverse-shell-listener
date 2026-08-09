@@ -357,12 +357,6 @@ body {
   position: relative;
 }
 
-.toolbar-dropdown-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-}
-
 .toolbar-dropdown-menu {
   position: absolute;
   top: calc(100% + 8px);

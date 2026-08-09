@@ -251,6 +251,13 @@ function isTypingTarget(e) {
   );
 }
 
+// Close the mobile session menu when clicking outside it.
+document.addEventListener("mousedown", (e) => {
+  if (app.sessionMenuOpen && !e.target.closest(".toolbar-mobile-actions")) {
+    closeSessionMenu();
+  }
+});
+
 window.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
     e.preventDefault();
@@ -1773,14 +1780,14 @@ const Hamburger = () =>
     el("span", {})
   );
 
-const ToolbarActions = ({ isDropdown = false, onAction }) => {
+const ToolbarActions = ({ isDropdown = false, onAction, className }) => {
   const wrap = (fn) => () => {
     fn();
     if (onAction) onAction();
   };
   return el(
     "div",
-    { class: isDropdown ? "toolbar-dropdown-menu" : "toolbar-actions" },
+    { class: className || (isDropdown ? "toolbar-dropdown-menu" : "toolbar-actions") },
     el(
       "button",
       {
@@ -1879,23 +1886,16 @@ const Toolbar = () =>
         {
           class: "btn",
           disabled: () => !current(),
-          onclick: () => (app.sessionMenuOpen = !app.sessionMenuOpen),
+          onclick: (e) => {
+            e.stopPropagation();
+            app.sessionMenuOpen = !app.sessionMenuOpen;
+          },
         },
         () => (app.sessionMenuOpen ? "Session ▲" : "Session ▼")
       ),
       when(
         () => app.sessionMenuOpen,
-        () =>
-          el(
-            "div",
-            {
-              class: "toolbar-dropdown-overlay",
-              onclick: (e) => {
-                if (e.target.classList.contains("toolbar-dropdown-overlay")) closeSessionMenu();
-              },
-            },
-            ToolbarActions({ isDropdown: true, onAction: closeSessionMenu })
-          )
+        () => ToolbarActions({ isDropdown: true, onAction: closeSessionMenu })
       )
     )
   );
