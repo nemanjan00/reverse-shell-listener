@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
+import net from "node:net";
 import { fileURLToPath } from "node:url";
 import protobuf from "protobufjs";
 
@@ -85,6 +86,46 @@ class Host {
     this._channels = new Map(); // channelId -> { session }
     this._pending = new Map(); // channelId -> { command, cols, rows }
     this._fileSockets = new Set(); // dashboard WebSockets for file transfer
+    this._proxySeq = 0;
+    this._proxyHandlers = new Map(); // proxyId -> { onData(data), onClose(reason) }
+  }
+
+  // Open a TCP proxy tunnel through this host. Returns the allocated proxyId.
+  openProxy(host, port) {
+    if (!this.alive) return null;
+    const proxyId = ++this._proxySeq;
+    this.send({ proxyOpen: { proxyId, host, port } });
+    return proxyId;
+  }
+
+  setProxyHandler(proxyId, handler) {
+    this._proxyHandlers.set(proxyId, handler);
+  }
+
+  deleteProxyHandler(proxyId) {
+    this._proxyHandlers.delete(proxyId);
+  }
+
+  onProxyOpenOk(proxyId) {
+    const handler = this._proxyHandlers.get(proxyId);
+    if (handler) handler.onOpen();
+  }
+
+  onProxyOpenError(proxyId, message) {
+    const handler = this._proxyHandlers.get(proxyId);
+    this._proxyHandlers.delete(proxyId);
+    if (handler) handler.onOpenError(message);
+  }
+
+  onProxyData(proxyId, data) {
+    const handler = this._proxyHandlers.get(proxyId);
+    if (handler) handler.onData(Buffer.from(data));
+  }
+
+  onProxyClose(proxyId) {
+    const handler = this._proxyHandlers.get(proxyId);
+    this._proxyHandlers.delete(proxyId);
+    if (handler) handler.onClose();
   }
 
   addFileSocket(ws) {
@@ -209,6 +250,10 @@ class Host {
       }
     }
     this._fileSockets.clear();
+    for (const handler of this._proxyHandlers.values()) {
+      handler.onClose();
+    }
+    this._proxyHandlers.clear();
   }
 }
 
@@ -300,6 +345,18 @@ export function registerMux(app) {
         case "fileChunk":
         case "fileDone":
           host.sendFileFrame(frame);
+          break;
+        case "proxyOpenOk":
+          host.onProxyOpenOk(frame.proxyOpenOk.proxyId);
+          break;
+        case "proxyOpenError":
+          host.onProxyOpenError(frame.proxyOpenError.proxyId, frame.proxyOpenError.message);
+          break;
+        case "proxyData":
+          host.onProxyData(frame.proxyData.proxyId, frame.proxyData.data);
+          break;
+        case "proxyClose":
+          host.onProxyClose(frame.proxyClose.proxyId);
           break;
         default:
           break;

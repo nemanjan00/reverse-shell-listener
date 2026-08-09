@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -80,6 +81,7 @@ type Client struct {
 	mu        sync.Mutex
 	channels  map[uint32]*channel
 	files     map[uint32]*os.File // active file transfers keyed by transfer_id
+	proxies   map[uint32]net.Conn  // active proxy tunnels keyed by proxy_id
 	stop      chan struct{}
 }
 
@@ -97,6 +99,7 @@ func Run(ctx context.Context, cfg Config) error {
 		cfg:      cfg,
 		channels: make(map[uint32]*channel),
 		files:    make(map[uint32]*os.File),
+		proxies:  make(map[uint32]net.Conn),
 		stop:     make(chan struct{}),
 	}
 	return c.run(ctx)
@@ -150,12 +153,19 @@ func (c *Client) close() {
 	for _, f := range c.files {
 		files = append(files, f)
 	}
+	proxies := make([]net.Conn, 0, len(c.proxies))
+	for _, p := range c.proxies {
+		proxies = append(proxies, p)
+	}
 	c.mu.Unlock()
 	for _, ch := range chans {
 		c.closeChannel(ch)
 	}
 	for _, f := range files {
 		f.Close()
+	}
+	for _, p := range proxies {
+		p.Close()
 	}
 	if c.conn != nil {
 		c.conn.Close()
@@ -250,6 +260,102 @@ func (c *Client) handleFrame(ctx context.Context, frame *muxpb.Frame) {
 		c.receiveFileChunk(v.FileChunk)
 	case *muxpb.Frame_FileDone:
 		c.finishFileReceive(v.FileDone)
+	case *muxpb.Frame_ProxyOpen:
+		go c.openProxy(v.ProxyOpen)
+	case *muxpb.Frame_ProxyData:
+		c.proxyData(v.ProxyData)
+	case *muxpb.Frame_ProxyClose:
+		c.proxyClose(v.ProxyClose)
+	}
+}
+
+// --- Proxy tunnels ---------------------------------------------------------
+
+func (c *Client) openProxy(req *muxpb.ProxyOpen) {
+	addr := net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
+	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	if err != nil {
+		log.Printf("[proxy] %d connect failed: %v", req.ProxyId, err)
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_ProxyOpenError{ProxyOpenError: &muxpb.ProxyOpenError{
+				ProxyId: req.ProxyId,
+				Message: err.Error(),
+			}},
+		})
+		return
+	}
+
+	c.mu.Lock()
+	c.proxies[req.ProxyId] = conn
+	c.mu.Unlock()
+
+	log.Printf("[proxy] %d connected to %s", req.ProxyId, addr)
+
+	_ = c.write(&muxpb.Frame{
+		Kind: &muxpb.Frame_ProxyOpenOk{ProxyOpenOk: &muxpb.ProxyOpenOk{
+			ProxyId: req.ProxyId,
+		}},
+	})
+
+	go func() {
+		buf := make([]byte, 16*1024)
+		for {
+			n, err := conn.Read(buf)
+			if n > 0 {
+				if werr := c.write(&muxpb.Frame{
+					Kind: &muxpb.Frame_ProxyData{ProxyData: &muxpb.ProxyData{
+						ProxyId: req.ProxyId,
+						Data:    append([]byte(nil), buf[:n]...),
+					}},
+				}); werr != nil {
+					break
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+		c.mu.Lock()
+		delete(c.proxies, req.ProxyId)
+		c.mu.Unlock()
+		conn.Close()
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_ProxyClose{ProxyClose: &muxpb.ProxyClose{
+				ProxyId: req.ProxyId,
+				Reason:  "proxy connection closed",
+			}},
+		})
+	}()
+}
+
+func (c *Client) proxyData(pd *muxpb.ProxyData) {
+	c.mu.Lock()
+	conn := c.proxies[pd.ProxyId]
+	c.mu.Unlock()
+	if conn == nil {
+		return
+	}
+	if _, err := conn.Write(pd.Data); err != nil {
+		conn.Close()
+		c.mu.Lock()
+		delete(c.proxies, pd.ProxyId)
+		c.mu.Unlock()
+		_ = c.write(&muxpb.Frame{
+			Kind: &muxpb.Frame_ProxyClose{ProxyClose: &muxpb.ProxyClose{
+				ProxyId: pd.ProxyId,
+				Reason:  err.Error(),
+			}},
+		})
+	}
+}
+
+func (c *Client) proxyClose(pc *muxpb.ProxyClose) {
+	c.mu.Lock()
+	conn := c.proxies[pc.ProxyId]
+	delete(c.proxies, pc.ProxyId)
+	c.mu.Unlock()
+	if conn != nil {
+		conn.Close()
 	}
 }
 

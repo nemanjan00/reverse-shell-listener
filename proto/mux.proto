@@ -15,9 +15,10 @@ option go_package = "github.com/nemanjan00/reverse-shell-listener/client/muxpb";
 // with OpenOk/OpenError, then raw PTY bytes flow both ways as Data frames.
 //
 // Directions:
-//   client -> server : Hello, OpenOk, OpenError, Data, Close, Pong, Ping, AutoExecResult, FileStart, FileChunk, FileDone
-//   server -> client : OpenRequest, Data, Resize, Close, Ping, Pong, AutoExec, FileRequest, FileStart, FileChunk, FileDone
+//   client -> server : Hello, OpenOk, OpenError, Data, Close, Pong, Ping, AutoExecResult, FileStart, FileChunk, FileDone, ProxyOpen, ProxyData, ProxyClose
+//   server -> client : OpenRequest, Data, Resize, Close, Ping, Pong, AutoExec, FileRequest, FileStart, FileChunk, FileDone, ProxyOpen, ProxyData, ProxyClose
 //   File* frames are relayed between the dashboard and the client via the server.
+//   Proxy* frames tunnel arbitrary TCP connections through a mux host.
 
 message Frame {
   oneof kind {
@@ -35,6 +36,11 @@ message Frame {
     FileStart   file_start   = 12; // uploader  -> downloader: begin transfer
     FileChunk   file_chunk   = 13; // uploader  -> downloader: data chunk
     FileDone    file_done    = 14; // either    -> either:    end or error
+    ProxyOpen      proxy_open      = 15; // server -> client: open a TCP tunnel
+    ProxyOpenOk    proxy_open_ok   = 18; // client -> server: tunnel is open
+    ProxyOpenError proxy_open_error = 19; // client -> server: tunnel open failed
+    ProxyData      proxy_data       = 16; // both: raw tunnel bytes
+    ProxyClose     proxy_close      = 17; // both: tunnel ended
   }
 }
 
@@ -128,4 +134,34 @@ message FileChunk {
 message FileDone {
   uint32 transfer_id = 1;
   string error       = 2;
+}
+
+// Server asks the client to open a TCP connection for a proxy tunnel.
+message ProxyOpen {
+  uint32 proxy_id = 1;  // server-assigned, unique per host connection
+  string host     = 2;  // target hostname or IP
+  uint32 port     = 3;  // target port
+}
+
+// Client reports that the proxy tunnel was successfully opened.
+message ProxyOpenOk {
+  uint32 proxy_id = 1;
+}
+
+// Client reports that the proxy tunnel could not be opened.
+message ProxyOpenError {
+  uint32 proxy_id = 1;
+  string message  = 2;
+}
+
+// Raw bytes for one proxy tunnel, in either direction.
+message ProxyData {
+  uint32 proxy_id = 1;
+  bytes  data     = 2;
+}
+
+// Either side closing a proxy tunnel. reason is best-effort/human-readable.
+message ProxyClose {
+  uint32 proxy_id = 1;
+  string reason   = 2;
 }

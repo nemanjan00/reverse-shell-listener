@@ -39,6 +39,11 @@ type Frame struct {
 	//	*Frame_FileStart
 	//	*Frame_FileChunk
 	//	*Frame_FileDone
+	//	*Frame_ProxyOpen
+	//	*Frame_ProxyOpenOk
+	//	*Frame_ProxyOpenError
+	//	*Frame_ProxyData
+	//	*Frame_ProxyClose
 	Kind          isFrame_Kind `protobuf_oneof:"kind"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -207,6 +212,51 @@ func (x *Frame) GetFileDone() *FileDone {
 	return nil
 }
 
+func (x *Frame) GetProxyOpen() *ProxyOpen {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_ProxyOpen); ok {
+			return x.ProxyOpen
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetProxyOpenOk() *ProxyOpenOk {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_ProxyOpenOk); ok {
+			return x.ProxyOpenOk
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetProxyOpenError() *ProxyOpenError {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_ProxyOpenError); ok {
+			return x.ProxyOpenError
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetProxyData() *ProxyData {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_ProxyData); ok {
+			return x.ProxyData
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetProxyClose() *ProxyClose {
+	if x != nil {
+		if x, ok := x.Kind.(*Frame_ProxyClose); ok {
+			return x.ProxyClose
+		}
+	}
+	return nil
+}
+
 type isFrame_Kind interface {
 	isFrame_Kind()
 }
@@ -267,6 +317,26 @@ type Frame_FileDone struct {
 	FileDone *FileDone `protobuf:"bytes,14,opt,name=file_done,json=fileDone,proto3,oneof"` // either    -> either:    end or error
 }
 
+type Frame_ProxyOpen struct {
+	ProxyOpen *ProxyOpen `protobuf:"bytes,15,opt,name=proxy_open,json=proxyOpen,proto3,oneof"` // server -> client: open a TCP tunnel
+}
+
+type Frame_ProxyOpenOk struct {
+	ProxyOpenOk *ProxyOpenOk `protobuf:"bytes,18,opt,name=proxy_open_ok,json=proxyOpenOk,proto3,oneof"` // client -> server: tunnel is open
+}
+
+type Frame_ProxyOpenError struct {
+	ProxyOpenError *ProxyOpenError `protobuf:"bytes,19,opt,name=proxy_open_error,json=proxyOpenError,proto3,oneof"` // client -> server: tunnel open failed
+}
+
+type Frame_ProxyData struct {
+	ProxyData *ProxyData `protobuf:"bytes,16,opt,name=proxy_data,json=proxyData,proto3,oneof"` // both: raw tunnel bytes
+}
+
+type Frame_ProxyClose struct {
+	ProxyClose *ProxyClose `protobuf:"bytes,17,opt,name=proxy_close,json=proxyClose,proto3,oneof"` // both: tunnel ended
+}
+
 func (*Frame_Hello) isFrame_Kind() {}
 
 func (*Frame_OpenRequest) isFrame_Kind() {}
@@ -294,6 +364,16 @@ func (*Frame_FileStart) isFrame_Kind() {}
 func (*Frame_FileChunk) isFrame_Kind() {}
 
 func (*Frame_FileDone) isFrame_Kind() {}
+
+func (*Frame_ProxyOpen) isFrame_Kind() {}
+
+func (*Frame_ProxyOpenOk) isFrame_Kind() {}
+
+func (*Frame_ProxyOpenError) isFrame_Kind() {}
+
+func (*Frame_ProxyData) isFrame_Kind() {}
+
+func (*Frame_ProxyClose) isFrame_Kind() {}
 
 // Sent once, immediately after the socket opens, so the operator sees who
 // called home. The token field authenticates the client against the server's
@@ -1113,11 +1193,276 @@ func (x *FileDone) GetError() string {
 	return ""
 }
 
+// Server asks the client to open a TCP connection for a proxy tunnel.
+type ProxyOpen struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProxyId       uint32                 `protobuf:"varint,1,opt,name=proxy_id,json=proxyId,proto3" json:"proxy_id,omitempty"` // server-assigned, unique per host connection
+	Host          string                 `protobuf:"bytes,2,opt,name=host,proto3" json:"host,omitempty"`                       // target hostname or IP
+	Port          uint32                 `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`                      // target port
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProxyOpen) Reset() {
+	*x = ProxyOpen{}
+	mi := &file_mux_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProxyOpen) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProxyOpen) ProtoMessage() {}
+
+func (x *ProxyOpen) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProxyOpen.ProtoReflect.Descriptor instead.
+func (*ProxyOpen) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ProxyOpen) GetProxyId() uint32 {
+	if x != nil {
+		return x.ProxyId
+	}
+	return 0
+}
+
+func (x *ProxyOpen) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *ProxyOpen) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+// Client reports that the proxy tunnel was successfully opened.
+type ProxyOpenOk struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProxyId       uint32                 `protobuf:"varint,1,opt,name=proxy_id,json=proxyId,proto3" json:"proxy_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProxyOpenOk) Reset() {
+	*x = ProxyOpenOk{}
+	mi := &file_mux_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProxyOpenOk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProxyOpenOk) ProtoMessage() {}
+
+func (x *ProxyOpenOk) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProxyOpenOk.ProtoReflect.Descriptor instead.
+func (*ProxyOpenOk) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ProxyOpenOk) GetProxyId() uint32 {
+	if x != nil {
+		return x.ProxyId
+	}
+	return 0
+}
+
+// Client reports that the proxy tunnel could not be opened.
+type ProxyOpenError struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProxyId       uint32                 `protobuf:"varint,1,opt,name=proxy_id,json=proxyId,proto3" json:"proxy_id,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProxyOpenError) Reset() {
+	*x = ProxyOpenError{}
+	mi := &file_mux_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProxyOpenError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProxyOpenError) ProtoMessage() {}
+
+func (x *ProxyOpenError) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProxyOpenError.ProtoReflect.Descriptor instead.
+func (*ProxyOpenError) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ProxyOpenError) GetProxyId() uint32 {
+	if x != nil {
+		return x.ProxyId
+	}
+	return 0
+}
+
+func (x *ProxyOpenError) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// Raw bytes for one proxy tunnel, in either direction.
+type ProxyData struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProxyId       uint32                 `protobuf:"varint,1,opt,name=proxy_id,json=proxyId,proto3" json:"proxy_id,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProxyData) Reset() {
+	*x = ProxyData{}
+	mi := &file_mux_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProxyData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProxyData) ProtoMessage() {}
+
+func (x *ProxyData) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProxyData.ProtoReflect.Descriptor instead.
+func (*ProxyData) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ProxyData) GetProxyId() uint32 {
+	if x != nil {
+		return x.ProxyId
+	}
+	return 0
+}
+
+func (x *ProxyData) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// Either side closing a proxy tunnel. reason is best-effort/human-readable.
+type ProxyClose struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProxyId       uint32                 `protobuf:"varint,1,opt,name=proxy_id,json=proxyId,proto3" json:"proxy_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProxyClose) Reset() {
+	*x = ProxyClose{}
+	mi := &file_mux_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProxyClose) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProxyClose) ProtoMessage() {}
+
+func (x *ProxyClose) ProtoReflect() protoreflect.Message {
+	mi := &file_mux_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProxyClose.ProtoReflect.Descriptor instead.
+func (*ProxyClose) Descriptor() ([]byte, []int) {
+	return file_mux_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ProxyClose) GetProxyId() uint32 {
+	if x != nil {
+		return x.ProxyId
+	}
+	return 0
+}
+
+func (x *ProxyClose) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 var File_mux_proto protoreflect.FileDescriptor
 
 const file_mux_proto_rawDesc = "" +
 	"\n" +
-	"\tmux.proto\x12\x03mux\"\xe6\x04\n" +
+	"\tmux.proto\x12\x03mux\"\xf5\x06\n" +
 	"\x05Frame\x12\"\n" +
 	"\x05hello\x18\x01 \x01(\v2\n" +
 	".mux.HelloH\x00R\x05hello\x125\n" +
@@ -1138,7 +1483,15 @@ const file_mux_proto_rawDesc = "" +
 	"file_start\x18\f \x01(\v2\x0e.mux.FileStartH\x00R\tfileStart\x12/\n" +
 	"\n" +
 	"file_chunk\x18\r \x01(\v2\x0e.mux.FileChunkH\x00R\tfileChunk\x12,\n" +
-	"\tfile_done\x18\x0e \x01(\v2\r.mux.FileDoneH\x00R\bfileDoneB\x06\n" +
+	"\tfile_done\x18\x0e \x01(\v2\r.mux.FileDoneH\x00R\bfileDone\x12/\n" +
+	"\n" +
+	"proxy_open\x18\x0f \x01(\v2\x0e.mux.ProxyOpenH\x00R\tproxyOpen\x126\n" +
+	"\rproxy_open_ok\x18\x12 \x01(\v2\x10.mux.ProxyOpenOkH\x00R\vproxyOpenOk\x12?\n" +
+	"\x10proxy_open_error\x18\x13 \x01(\v2\x13.mux.ProxyOpenErrorH\x00R\x0eproxyOpenError\x12/\n" +
+	"\n" +
+	"proxy_data\x18\x10 \x01(\v2\x0e.mux.ProxyDataH\x00R\tproxyData\x122\n" +
+	"\vproxy_close\x18\x11 \x01(\v2\x0f.mux.ProxyCloseH\x00R\n" +
+	"proxyCloseB\x06\n" +
 	"\x04kind\"\xa7\x01\n" +
 	"\x05Hello\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x1a\n" +
@@ -1200,7 +1553,23 @@ const file_mux_proto_rawDesc = "" +
 	"\bFileDone\x12\x1f\n" +
 	"\vtransfer_id\x18\x01 \x01(\rR\n" +
 	"transferId\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05errorB;Z9github.com/nemanjan00/reverse-shell-listener/client/muxpbb\x06proto3"
+	"\x05error\x18\x02 \x01(\tR\x05error\"N\n" +
+	"\tProxyOpen\x12\x19\n" +
+	"\bproxy_id\x18\x01 \x01(\rR\aproxyId\x12\x12\n" +
+	"\x04host\x18\x02 \x01(\tR\x04host\x12\x12\n" +
+	"\x04port\x18\x03 \x01(\rR\x04port\"(\n" +
+	"\vProxyOpenOk\x12\x19\n" +
+	"\bproxy_id\x18\x01 \x01(\rR\aproxyId\"E\n" +
+	"\x0eProxyOpenError\x12\x19\n" +
+	"\bproxy_id\x18\x01 \x01(\rR\aproxyId\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\":\n" +
+	"\tProxyData\x12\x19\n" +
+	"\bproxy_id\x18\x01 \x01(\rR\aproxyId\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"?\n" +
+	"\n" +
+	"ProxyClose\x12\x19\n" +
+	"\bproxy_id\x18\x01 \x01(\rR\aproxyId\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reasonB;Z9github.com/nemanjan00/reverse-shell-listener/client/muxpbb\x06proto3"
 
 var (
 	file_mux_proto_rawDescOnce sync.Once
@@ -1214,23 +1583,28 @@ func file_mux_proto_rawDescGZIP() []byte {
 	return file_mux_proto_rawDescData
 }
 
-var file_mux_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_mux_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_mux_proto_goTypes = []any{
-	(*Frame)(nil),       // 0: mux.Frame
-	(*Hello)(nil),       // 1: mux.Hello
-	(*OpenRequest)(nil), // 2: mux.OpenRequest
-	(*OpenOk)(nil),      // 3: mux.OpenOk
-	(*OpenError)(nil),   // 4: mux.OpenError
-	(*Data)(nil),        // 5: mux.Data
-	(*Resize)(nil),      // 6: mux.Resize
-	(*Close)(nil),       // 7: mux.Close
-	(*Ping)(nil),        // 8: mux.Ping
-	(*Pong)(nil),        // 9: mux.Pong
-	(*AutoExec)(nil),    // 10: mux.AutoExec
-	(*FileRequest)(nil), // 11: mux.FileRequest
-	(*FileStart)(nil),   // 12: mux.FileStart
-	(*FileChunk)(nil),   // 13: mux.FileChunk
-	(*FileDone)(nil),    // 14: mux.FileDone
+	(*Frame)(nil),          // 0: mux.Frame
+	(*Hello)(nil),          // 1: mux.Hello
+	(*OpenRequest)(nil),    // 2: mux.OpenRequest
+	(*OpenOk)(nil),         // 3: mux.OpenOk
+	(*OpenError)(nil),      // 4: mux.OpenError
+	(*Data)(nil),           // 5: mux.Data
+	(*Resize)(nil),         // 6: mux.Resize
+	(*Close)(nil),          // 7: mux.Close
+	(*Ping)(nil),           // 8: mux.Ping
+	(*Pong)(nil),           // 9: mux.Pong
+	(*AutoExec)(nil),       // 10: mux.AutoExec
+	(*FileRequest)(nil),    // 11: mux.FileRequest
+	(*FileStart)(nil),      // 12: mux.FileStart
+	(*FileChunk)(nil),      // 13: mux.FileChunk
+	(*FileDone)(nil),       // 14: mux.FileDone
+	(*ProxyOpen)(nil),      // 15: mux.ProxyOpen
+	(*ProxyOpenOk)(nil),    // 16: mux.ProxyOpenOk
+	(*ProxyOpenError)(nil), // 17: mux.ProxyOpenError
+	(*ProxyData)(nil),      // 18: mux.ProxyData
+	(*ProxyClose)(nil),     // 19: mux.ProxyClose
 }
 var file_mux_proto_depIdxs = []int32{
 	1,  // 0: mux.Frame.hello:type_name -> mux.Hello
@@ -1247,11 +1621,16 @@ var file_mux_proto_depIdxs = []int32{
 	12, // 11: mux.Frame.file_start:type_name -> mux.FileStart
 	13, // 12: mux.Frame.file_chunk:type_name -> mux.FileChunk
 	14, // 13: mux.Frame.file_done:type_name -> mux.FileDone
-	14, // [14:14] is the sub-list for method output_type
-	14, // [14:14] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	15, // 14: mux.Frame.proxy_open:type_name -> mux.ProxyOpen
+	16, // 15: mux.Frame.proxy_open_ok:type_name -> mux.ProxyOpenOk
+	17, // 16: mux.Frame.proxy_open_error:type_name -> mux.ProxyOpenError
+	18, // 17: mux.Frame.proxy_data:type_name -> mux.ProxyData
+	19, // 18: mux.Frame.proxy_close:type_name -> mux.ProxyClose
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_mux_proto_init() }
@@ -1274,6 +1653,11 @@ func file_mux_proto_init() {
 		(*Frame_FileStart)(nil),
 		(*Frame_FileChunk)(nil),
 		(*Frame_FileDone)(nil),
+		(*Frame_ProxyOpen)(nil),
+		(*Frame_ProxyOpenOk)(nil),
+		(*Frame_ProxyOpenError)(nil),
+		(*Frame_ProxyData)(nil),
+		(*Frame_ProxyClose)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1281,7 +1665,7 @@ func file_mux_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mux_proto_rawDesc), len(file_mux_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
