@@ -83,8 +83,8 @@ function parseCookies(header = "") {
 // WS handshakes automatically). Auth is enforced at startup, so this is only
 // ever called when AUTH_USER/AUTH_PASS are set.
 export function authorized(req) {
-  const cookies = parseCookies(req.headers && req.headers.cookie);
-  return verifyToken(cookies[COOKIE]);
+  const payload = getTokenPayload(req);
+  return payload !== null && Boolean(payload.c);
 }
 
 export function getTokenPayload(req) {
