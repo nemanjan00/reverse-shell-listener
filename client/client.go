@@ -113,7 +113,10 @@ func (c *Client) run(ctx context.Context) error {
 	defer cancel()
 
 	go c.pingLoop(ctx)
-	go c.readLoop(ctx)
+	go func() {
+		c.readLoop(ctx)
+		cancel()
+	}()
 
 	<-ctx.Done()
 	return ctx.Err()
