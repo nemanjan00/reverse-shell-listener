@@ -399,12 +399,15 @@ const BuildPanel = () =>
         {
           onchange: (e) => (app.buildTarget = e.target.value),
         },
-        ...app.buildTargets.map((t) =>
-          el(
-            "option",
-            { value: t, selected: () => app.buildTarget === t },
-            t
-          )
+        list(
+          () => app.buildTargets,
+          (t) => t,
+          (t) =>
+            el(
+              "option",
+              { value: t, selected: () => app.buildTarget === t },
+              t
+            )
         )
       )
     ),
