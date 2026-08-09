@@ -1090,7 +1090,11 @@ const Toolbar = () =>
       {
         class: "btn",
         disabled: () =>
-          !current() || !current().alive || current().transport === "webshell",
+          !current() ||
+          !current().alive ||
+          current().transport === "webshell" ||
+          current().transport === "mux" ||
+          current().upgraded,
         onclick: upgradeCurrent,
         title: "Upgrade the remote shell to a PTY-backed bash",
       },

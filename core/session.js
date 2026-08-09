@@ -6,6 +6,7 @@ import config from "../config.js";
 // one blob to the remote shell.
 function upgradeCommand(cols, rows) {
   return (
+    "\n" +
     "python3 -c 'import pty; pty.spawn(\"/bin/bash\")' 2>/dev/null || " +
     "python -c 'import pty; pty.spawn(\"/bin/bash\")' 2>/dev/null || " +
     "script -qc /bin/bash /dev/null\n" +
