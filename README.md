@@ -9,6 +9,8 @@
 
 A single-host, multi-transport reverse-shell catcher with a browser dashboard.
 
+![Screenshot](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/screenshot.png)
+
 ```mermaid
 flowchart LR
     subgraph Targets
@@ -56,8 +58,6 @@ flowchart LR
 | 🔧 **Resizable UI** | Drag to resize sidebar and log panels |
 | 🔐 **Auth + CSRF** | Session-cookie login protecting dashboard, REST API, and browser WebSockets |
 | 🏗️ **Build panel** | Cross-compile the Go mux client from the dashboard with the server URL baked in |
-
-![Screenshot](https://raw.githubusercontent.com/nemanjan00/reverse-shell-listener/master/screenshot/screenshot.png)
 
 ## 🚀 Quick start
 
