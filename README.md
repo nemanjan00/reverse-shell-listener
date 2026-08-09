@@ -12,7 +12,7 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
   - TLS reverse-shell listener
   - HTTP webshell beacon transport
   - multiplexed WebSocket/protobuf implant protocol with a Go client
-- **Dashboard:** live session list with a full PTY terminal (resize + mouse support), one-click offline-session cleanup, a live in-memory event log, copyable payload examples, and a BadUSB / DuckyScript generator.
+- **Dashboard:** live session list with a full PTY terminal (resize + mouse support), one-click offline-session cleanup, a live in-memory event log, copyable payload examples, a BadUSB / DuckyScript generator, per-host file transfer, a native file-system browser, and HTTP CONNECT proxy controls.
 - **Auth:** session-cookie login; protects the dashboard, REST API, and browser-facing WebSocket endpoints.
 - **Build panel:** cross-compile the Go mux client from the dashboard with the server URL baked in — supports linux/darwin/windows × amd64/arm64, plus armv7 (Luckfox/Shark Jack) and mipsle soft-float (MT7628).
 
@@ -36,6 +36,9 @@ docker run -p 8080:8080 -p 1337:1337 -p 1338:1338 \
   -e AUTH_USER=admin -e AUTH_PASS=s3cr3t \
   reverse-shell-listener
 ```
+
+Add `-p 3128:3128 -e PROXY_TOKEN=... -e PROXY_PORT=3128` if you want the HTTP
+CONNECT proxy on its own port (recommended behind reverse proxies like Traefik).
 
 The image bundles the frontend, the Node server, and the Go mux client
 (`rsl-client` is on `$PATH` inside the container). The TLS transport
@@ -66,6 +69,8 @@ auto-generates a self-signed cert on first start using the bundled `openssl`.
 | `AUTH_PASS`         |         | **Required.** Dashboard/REST/WS login password    |
 | `AUTH_SECRET`       | random  | Pin session cookie secret across restarts        |
 | `BUILD_TOKEN`       |         | Shared token for `/mux`, `/dl`, and `/webshell`  |
+| `PROXY_TOKEN`       |         | HTTP CONNECT proxy password (username = host id) |
+| `PROXY_PORT`        | 0       | Dedicated proxy port; 0 shares the API port      |
 | `SCROLLBACK_BYTES`  | 1 MB    | Per-session in-memory scrollback cap             |
 | `WEBSHELL_POLL_MS`  | 25000   | Long-poll hold time                              |
 | `WEBSHELL_TIMEOUT`  | 30000   | Idle timeout before a webshell beacon is dead     |
@@ -125,6 +130,21 @@ spawns a real PTY for each channel the operator requests from the dashboard.
 Resize events from xterm are forwarded to the remote PTY via `SIGWINCH`. On
 disconnect it reconnects with linear backoff.
 
+### HTTP CONNECT proxy
+
+When `PROXY_TOKEN` is set, each mux host becomes an HTTP CONNECT proxy. The
+dashboard shows the proxy URL and Basic auth for the selected host
+(`host_id:PROXY_TOKEN`). Curl example:
+
+```bash
+curl -x http://rsl.example.com:3128 -U h1:YOUR_PROXY_TOKEN https://example.com
+```
+
+- `PROXY_PORT=0` (default): the proxy handler shares the dashboard/API port.
+- `PROXY_PORT=3128`: the proxy listens on its own TCP port, which is easier to
+  expose through reverse proxies like Traefik that cannot forward raw `CONNECT`
+  tunnels on an HTTP route.
+
 ### Building the client from the dashboard
 
 The dashboard's **Build client** panel (sidebar, bottom) cross-compiles the
@@ -170,6 +190,7 @@ Windows PTY is not included in this build.
 | `/api/hosts`                     | GET    | List mux hosts                           |
 | `/api/hosts/:id`                 | GET    | Host metadata                            |
 | `/api/hosts/:id/shells`          | POST   | Ask host to open a new PTY shell         |
+| `/api/config`                    | GET    | Runtime config: proxy URL, tokens        |
 | `/api/log`                       | GET    | In-memory event-log snapshot (`?since=ts`)
 
 All mutating endpoints (`POST`, `DELETE`, etc.) require the `X-CSRF-Token`
@@ -180,6 +201,12 @@ header to match the `rsl_csrf` cookie issued at login.
 - `/api/ws/sessions` — JSON event stream for the session/host list
 - `/api/ws/session/:id` — binary terminal channel + JSON control frames
 - `/api/ws/log` — JSON event-log stream; replays history then streams live entries
+- `/api/ws/host/:id/file` — file transfer relay to a mux host (JSON ↔ protobuf)
+- `/api/ws/host/:id/fs` — native file-system browser relay (JSON ↔ protobuf)
+
+Mux hosts advertise a feature bitmap in their `Hello` message. The dashboard
+uses it to hide controls (file transfer, file manager, proxy) that older
+clients do not support.
 
 ## Security
 
