@@ -7,6 +7,10 @@ SHA="$(git rev-parse --short HEAD)"
 echo "Building ${IMAGE}:latest and ${IMAGE}:${SHA} ..."
 docker build -t "${IMAGE}:latest" -t "${IMAGE}:${SHA}" .
 
+echo "Pushing ..."
+docker push "${IMAGE}:latest"
+docker push "${IMAGE}:${SHA}"
+
 echo "Done."
 echo "  ${IMAGE}:latest"
 echo "  ${IMAGE}:${SHA}"
