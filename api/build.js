@@ -29,9 +29,10 @@ const TARGETS = {
 };
 
 // Sanitize a simple ldflag value: lowercase slug-like strings (tags, etc).
+// An empty value is allowed because tags are optional.
 function sanitizeLdflagValue(v) {
   const s = String(v || "");
-  if (!/^[a-z0-9_-]+$/.test(s)) {
+  if (s && !/^[a-z0-9_-]+$/.test(s)) {
     throw new Error(`invalid value for ldflag: ${JSON.stringify(s)}`);
   }
   return s;
