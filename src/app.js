@@ -297,20 +297,41 @@ function selectSession(id) {
   termCtl.attach(id);
 }
 
+async function apiPost(url, body) {
+  const token = csrfToken();
+  if (!token) {
+    alert("Session expired or CSRF cookie missing. Please log in again.");
+    location.href = "/login";
+    return;
+  }
+  const options = {
+    method: "POST",
+    headers: { "X-CSRF-Token": token },
+  };
+  if (body !== undefined) {
+    options.headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(body);
+  }
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("API error:", res.status, err);
+    }
+    return res;
+  } catch (e) {
+    console.error("Network error:", e);
+  }
+}
+
 async function killCurrent() {
   const c = current();
   if (!c) return;
-  await fetch(`/api/sessions/${c.id}/kill`, {
-    method: "POST",
-    headers: { "X-CSRF-Token": csrfToken() },
-  }).catch(() => {});
+  await apiPost(`/api/sessions/${c.id}/kill`);
 }
 
 async function clearDeadSessions() {
-  await fetch("/api/sessions/clear-dead", {
-    method: "POST",
-    headers: { "X-CSRF-Token": csrfToken() },
-  }).catch(() => {});
+  await apiPost("/api/sessions/clear-dead");
 }
 
 function upgradeCurrent() {
@@ -330,11 +351,7 @@ async function openHostShell(hostId) {
   if (!host || !host.alive) return;
   const cols = termCtl.term?.cols || 80;
   const rows = termCtl.term?.rows || 24;
-  await fetch(`/api/hosts/${hostId}/shells`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-    body: JSON.stringify({ cols, rows }),
-  }).catch(() => {});
+  await apiPost(`/api/hosts/${hostId}/shells`, { cols, rows });
 }
 
 function openHostDetails(hostId) {
