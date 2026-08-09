@@ -70,6 +70,7 @@ const app = state({
   badUsbOs: "linux",
   badUsbArch: "amd64",
   badUsbTags: "",
+  badUsbDevice: "flipper",
   badUsbVid: "",
   badUsbPid: "",
   badUsbDelay: 1000,
@@ -933,9 +934,17 @@ function badUsbScript() {
     pid = "0x0281";
   }
   const delay = Math.max(0, parseInt(app.badUsbDelay, 10) || 0);
+  const device = app.badUsbDevice || "flipper";
   const lines = [];
-  if (vid) lines.push("VID " + vid);
-  if (pid) lines.push("PID " + pid);
+  if (device === "rubber" && (vid || pid)) {
+    const vidPart = vid ? vid.replace(/^0x/i, "").toUpperCase() : "0000";
+    const pidPart = pid ? pid.replace(/^0x/i, "").toUpperCase() : "0000";
+    lines.push(`ATTACKMODE HID VID_${vidPart} PID_${pidPart}`);
+  } else if (device === "flipper" && (vid || pid)) {
+    const vidPart = vid ? vid.replace(/^0x/i, "").toLowerCase() : "0000";
+    const pidPart = pid ? pid.replace(/^0x/i, "").toLowerCase() : "0000";
+    lines.push(`ID ${vidPart}:${pidPart} Apple:Keyboard`);
+  }
   if (delay > 0) lines.push("DELAY " + delay);
   if (os === "windows" || os === "win") {
     lines.push("GUI r");
@@ -1268,6 +1277,19 @@ const BadUsbModal = () =>
               el("option", { value: "linux", selected: () => app.badUsbOs === "linux" }, "linux"),
               el("option", { value: "windows", selected: () => app.badUsbOs === "windows" }, "windows"),
               el("option", { value: "darwin", selected: () => app.badUsbOs === "darwin" }, "darwin")
+            )
+          ),
+          el(
+            "label",
+            { class: "field" },
+            el("span", {}, "Device"),
+            el(
+              "select",
+              {
+                onchange: (e) => (app.badUsbDevice = e.target.value),
+              },
+              el("option", { value: "flipper", selected: () => app.badUsbDevice === "flipper" }, "Flipper Zero / BadUSB"),
+              el("option", { value: "rubber", selected: () => app.badUsbDevice === "rubber" }, "USB Rubber Ducky / Bash Bunny")
             )
           ),
           el(
