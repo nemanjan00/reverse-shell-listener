@@ -949,7 +949,7 @@ function badUsbScript() {
   } else if (isMac) {
     lines.push("GUI SPACE");
     lines.push("DELAY 500");
-    lines.push("STRING terminal");
+    lines.push("STRING terminal.app");
     lines.push("DELAY 200");
     lines.push("ENTER");
     lines.push("DELAY 800");
