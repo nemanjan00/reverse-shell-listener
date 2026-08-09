@@ -1001,6 +1001,26 @@ const Sidebar = () =>
         () => deadSessions().length === 0,
         () => el("div", { class: "empty" }, "None")
       )
+    ),
+    el(
+      "div",
+      { class: "sidebar-actions" },
+      el(
+        "button",
+        {
+          class: "btn",
+          onclick: () => openModal("build"),
+        },
+        "Build"
+      ),
+      el(
+        "button",
+        {
+          class: "btn",
+          onclick: () => openModal("badusb"),
+        },
+        "BadUSB"
+      )
     )
   );
 
@@ -1075,24 +1095,6 @@ const Toolbar = () =>
         title: "Upgrade the remote shell to a PTY-backed bash",
       },
       "Upgrade PTY"
-    ),
-    el(
-      "button",
-      {
-        class: "btn",
-        onclick: () => openModal("build"),
-        title: "Cross-compile the Go client",
-      },
-      "Build"
-    ),
-    el(
-      "button",
-      {
-        class: "btn",
-        onclick: () => openModal("badusb"),
-        title: "Generate a DuckyScript payload",
-      },
-      "BadUSB"
     ),
     el(
       "button",
