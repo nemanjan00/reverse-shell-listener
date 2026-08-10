@@ -4,6 +4,7 @@ import { WebSocket } from "ws";
 import { URL } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
+import notifier from "node-notifier";
 
 // tmux-like remote operator TUI.
 //
@@ -52,6 +53,16 @@ if (!apiToken) {
 
 // Force a 256-color terminal name so remote apps use full colors.
 process.env.TERM = process.env.TERM || "xterm-256color";
+
+const notifyEnabled = process.env.RSL_NOTIFY !== "0";
+function notify(title, message) {
+  if (!notifyEnabled) return;
+  try {
+    notifier.notify({ title, message, timeout: 5 });
+  } catch {
+    // notifications are best-effort; ignore missing dbus / notify-send
+  }
+}
 
 const parsed = new URL(baseUrl);
 const wsScheme = parsed.protocol === "https:" ? "wss" : "ws";
@@ -345,7 +356,10 @@ function createShellWindow({ sessionId, title }) {
     if (!isBinary && typeof data === "string") {
       try {
         const msg = JSON.parse(data);
-        if (msg.type === "exit") term.write("\r\n[session exited]\r\n");
+        if (msg.type === "exit") {
+          term.write("\r\n[session exited]\r\n");
+          notify("rsl-cli session exited", title);
+        }
       } catch {
         // ignore non-JSON text
       }
@@ -663,7 +677,9 @@ function handleFileMessage(win, msg) {
         setStatus(`download failed: ${msg.error}`);
         try { fs.unlinkSync(tx.path); } catch {}
       } else {
-        setStatus(`downloaded ${path.basename(tx.path)} (${formatBytes(tx.received)})`);
+        const name = path.basename(tx.path);
+        setStatus(`downloaded ${name} (${formatBytes(tx.received)})`);
+        notify("rsl-cli download complete", name);
       }
       break;
     }
@@ -695,13 +711,22 @@ function handleEvent(msg) {
       if (msg.session) sessions.delete(msg.session.id);
       break;
     case "host_add":
-      if (msg.host) hosts.set(msg.host.id, msg.host);
+      if (msg.host) {
+        hosts.set(msg.host.id, msg.host);
+        const who = msg.host.hostname || msg.host.remote || msg.host.id;
+        notify("rsl-cli host connected", `${who} (${msg.host.os || "?"}/${msg.host.arch || "?"})`);
+      }
       break;
     case "host_update":
       if (msg.host) hosts.set(msg.host.id, msg.host);
       break;
     case "host_remove":
-      if (msg.host) hosts.delete(msg.host.id);
+      if (msg.host) {
+        const removed = hosts.get(msg.host.id);
+        const who = removed?.hostname || removed?.remote || msg.host.id;
+        hosts.delete(msg.host.id);
+        notify("rsl-cli host disconnected", who);
+      }
       break;
   }
   if (choosing) populateChooser();
