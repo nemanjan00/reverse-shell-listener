@@ -620,6 +620,16 @@ function refreshFileList(win) {
   }
 }
 
+function safeDisplayName(name, max = 60) {
+  // Blessed has trouble measuring widths for astral characters and some
+  // control characters, which causes rendering artifacts. Replace them for
+  // display only; the original name is still used for navigation/download.
+  let s = name.replace(/[\p{Cc}\p{Co}\p{Cn}]/gu, "?");
+  s = s.replace(/[^\u0000-\uFFFF]/g, "?");
+  if (s.length > max) s = s.slice(0, max - 1) + "…";
+  return s;
+}
+
 function renderFileList(win) {
   const items = [];
   if (win.path !== "." && win.path !== win.sep && !win.path.endsWith(":")) {
@@ -628,7 +638,8 @@ function renderFileList(win) {
   for (const e of win.entries) {
     const icon = e.is_dir ? "📁" : "📄";
     const size = e.is_dir ? "" : ` ${formatBytes(e.size || 0)}`;
-    items.push({ text: `${icon} ${e.name}${size}`, kind: e.is_dir ? "dir" : "file", name: e.name });
+    const display = safeDisplayName(e.name);
+    items.push({ text: `${icon} ${display}${size}`, kind: e.is_dir ? "dir" : "file", name: e.name });
   }
   win.fmData = items;
   win.fm.setItems(items.map((it) => it.text));
