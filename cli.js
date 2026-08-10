@@ -2,12 +2,23 @@
 import blessed from "blessed";
 import { WebSocket } from "ws";
 import { URL } from "node:url";
+import path from "node:path";
+import fs from "node:fs";
 
 // tmux-like remote operator TUI.
 //
 // Usage:
-//   RSL_URL=https://rsl.example.com RSL_API_TOKEN=... node cli.js
+//   RSL_URL=https://rsl.example.com RSL_TOKEN=... node cli.js
 //   node cli.js --url https://rsl.example.com --token ...
+//
+// Keys:
+//   Ctrl+b c / s   open host/session chooser (new shell window)
+//   Ctrl+b f       open host chooser (new file-manager window)
+//   Ctrl+b n / p   next / previous window
+//   Ctrl+b 0-9     switch to window
+//   Ctrl+b &       close current window
+//   Ctrl+b d / q   detach / quit
+//   Ctrl+b Ctrl+b  send literal Ctrl+b to the shell
 
 let baseUrl = process.env.RSL_URL || "";
 let apiToken = process.env.RSL_TOKEN || process.env.RSL_API_TOKEN || "";
@@ -35,7 +46,7 @@ if (!baseUrl) {
   process.exit(1);
 }
 if (!apiToken) {
-  console.error("Error: --token or RSL_API_TOKEN required");
+  console.error("Error: --token or RSL_TOKEN required");
   process.exit(1);
 }
 
@@ -114,12 +125,15 @@ function setStatus(text) {
 
 const sessions = new Map();
 const hosts = new Map();
-const windows = []; // { id, title, term, ws, hostId?, sessionId? }
+const windows = []; // { id, title, type, term?, shellWs?, fm?, fsWs?, fileWs?, hostId?, path?, entries? ... }
 let activeWindowIndex = -1;
 let prefixMode = false;
 let prefixTimer = null;
 let choosing = false;
+let chooserMode = "shell"; // "shell" | "files"
 const pendingShells = new Map();
+let fsRequestSeq = 1;
+let fileTransferSeq = 1;
 
 function isPrefix(data) {
   if (Buffer.isBuffer(data)) {
@@ -128,17 +142,23 @@ function isPrefix(data) {
   return data === "\x02";
 }
 
+function activeWindowIsShell() {
+  const win = windows[activeWindowIndex];
+  return win && win.type === "shell";
+}
+
 function updateBottomBar() {
   const parts = [];
   for (let i = 0; i < windows.length; i++) {
     const marker = i === activeWindowIndex ? "*" : " ";
-    parts.push(`[${i}]${marker}${windows[i].title}`);
+    const icon = windows[i].type === "files" ? "📁" : "🐚";
+    parts.push(`[${i}]${marker}${icon}${windows[i].title}`);
   }
   let text = parts.join("  ");
   if (prefixMode) {
     text += "  {inverse} PREFIX {/inverse}";
   } else {
-    text += "  ^B=prefix";
+    text += "  ^B c/s/f";
   }
   bottomBar.setContent(text);
   screen.render();
@@ -159,7 +179,7 @@ function wrapTerminalInput(term) {
     if (choosing) return;
     if (screen.focused !== term) return;
     if (prefixMode) {
-      handlePrefixCommand(data);
+      handleShellPrefixCommand(data);
       return;
     }
     if (isPrefix(data)) {
@@ -188,15 +208,67 @@ function exitPrefixMode() {
   updateBottomBar();
 }
 
+function runGlobalCommand(ch) {
+  switch (ch) {
+    case "c":
+    case "s":
+      openChooser("shell");
+      break;
+    case "f":
+      openChooser("files");
+      break;
+    case "n":
+      switchWindow(activeWindowIndex + 1);
+      break;
+    case "p":
+      switchWindow(activeWindowIndex - 1);
+      break;
+    case "0":
+    case "1":
+    case "2":
+    case "3":
+    case "4":
+    case "5":
+    case "6":
+    case "7":
+    case "8":
+    case "9":
+      switchWindow(Number(ch));
+      break;
+    case "&":
+      if (activeWindowIndex >= 0) closeWindow(activeWindowIndex);
+      break;
+    case "d":
+    case "q":
+      process.exit(0);
+      break;
+  }
+}
+
+function handleShellPrefixCommand(data) {
+  exitPrefixMode();
+  if (isPrefix(data)) {
+    // Prefix pressed twice: send it through to the shell.
+    const term = activeWindowIndex >= 0 ? windows[activeWindowIndex].term : null;
+    if (term) term._onData(data);
+    return;
+  }
+  const ch = Buffer.isBuffer(data) ? String.fromCharCode(data[0]) : data;
+  runGlobalCommand(ch);
+}
+
 function closeWindow(idx) {
   const win = windows[idx];
   if (!win) return;
   try {
-    win.ws.close();
+    if (win.shellWs) win.shellWs.close();
+    if (win.fsWs) win.fsWs.close();
+    if (win.fileWs) win.fileWs.close();
   } catch {
     /* ignore */
   }
-  win.term.destroy();
+  if (win.term) win.term.destroy();
+  if (win.fm) win.fm.destroy();
   windows.splice(idx, 1);
   if (activeWindowIndex === idx) {
     activeWindowIndex = windows.length ? Math.min(idx, windows.length - 1) : -1;
@@ -210,13 +282,21 @@ function showActiveWindow() {
   for (let i = 0; i < windows.length; i++) {
     const win = windows[i];
     if (i === activeWindowIndex) {
-      win.term.show();
-      win.term.setFront();
-      win.term.focus();
-      mainBox.setLabel(` shell — ${win.title} `);
-      sendResize(win.term, win.ws);
+      if (win.type === "shell") {
+        win.term.show();
+        win.term.setFront();
+        win.term.focus();
+        mainBox.setLabel(` shell — ${win.title} `);
+        sendResize(win.term, win.shellWs);
+      } else {
+        win.fm.show();
+        win.fm.setFront();
+        win.fm.focus();
+        mainBox.setLabel(` files — ${win.title} `);
+      }
     } else {
-      win.term.hide();
+      if (win.term) win.term.hide();
+      if (win.fm) win.fm.hide();
     }
   }
   if (activeWindowIndex < 0) {
@@ -227,7 +307,7 @@ function showActiveWindow() {
   screen.render();
 }
 
-function createWindow({ sessionId, title }) {
+function createShellWindow({ sessionId, title }) {
   const winIndex = windows.length;
   const term = blessed.terminal({
     parent: mainBox,
@@ -245,7 +325,7 @@ function createWindow({ sessionId, title }) {
   wrapTerminalInput(term);
 
   const ws = new WebSocket(`${wsOrigin}/api/ws/session/${sessionId}`, { headers: wsHeaders });
-  const win = { id: sessionId, title, term, ws };
+  const win = { id: sessionId, title, type: "shell", term, shellWs: ws };
   windows.push(win);
 
   term.handler = (data) => {
@@ -280,6 +360,87 @@ function createWindow({ sessionId, title }) {
 
   ws.on("error", (err) => {
     setStatus(`ws error: ${err.message}`);
+  });
+
+  activeWindowIndex = winIndex;
+  showActiveWindow();
+  return win;
+}
+
+function createFileWindow({ hostId, title }) {
+  const winIndex = windows.length;
+  const fm = blessed.list({
+    parent: mainBox,
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    label: ` files — ${title} `,
+    border: { type: "line" },
+    keys: true,
+    vi: true,
+    hidden: winIndex !== activeWindowIndex,
+    style: {
+      fg: "white",
+      bg: "black",
+      border: { fg: "cyan" },
+      selected: { fg: "black", bg: "cyan" },
+    },
+    tags: true,
+  });
+
+  const host = hosts.get(hostId);
+  const pathModule = host && host.os === "windows" ? path.win32 : path.posix;
+  const sep = pathModule.sep;
+
+  const fsWs = new WebSocket(`${wsOrigin}/api/ws/host/${hostId}/fs`, { headers: wsHeaders });
+  const fileWs = new WebSocket(`${wsOrigin}/api/ws/host/${hostId}/file`, { headers: wsHeaders });
+
+  const win = {
+    id: hostId,
+    title,
+    type: "files",
+    fm,
+    fsWs,
+    fileWs,
+    hostId,
+    path: ".",
+    pathModule,
+    sep,
+    entries: [],
+    fsPending: new Map(),
+    fileTransfers: new Map(),
+  };
+  windows.push(win);
+
+  fm.on("select", () => navigateFile(win));
+
+  fm.key(["h", "backspace"], () => navigateFileUp(win));
+  fm.key(["r"], () => refreshFileList(win));
+  fm.key(["d"], () => downloadSelectedFile(win));
+  fm.key(["q"], () => {
+    const idx = windows.indexOf(win);
+    if (idx >= 0) closeWindow(idx);
+  });
+
+  fsWs.on("open", () => refreshFileList(win));
+
+  fsWs.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      handleFsMessage(win, msg);
+    } catch (err) {
+      setStatus(`fs parse error: ${err.message}`);
+    }
+  });
+
+  fileWs.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      handleFileMessage(win, msg);
+    } catch (err) {
+      setStatus(`file parse error: ${err.message}`);
+    }
   });
 
   activeWindowIndex = winIndex;
@@ -323,18 +484,22 @@ function populateChooser() {
       id: h.id,
     });
   }
-  for (const s of sessions.values()) {
-    const alive = s.alive ? "{green-fg}●{/green-fg}" : "{red-fg}●{/red-fg}";
-    items.push({
-      text: `${alive} [S] ${s.remote || s.id}`,
-      kind: "session",
-      id: s.id,
-    });
+  if (chooserMode === "shell") {
+    for (const s of sessions.values()) {
+      const alive = s.alive ? "{green-fg}●{/green-fg}" : "{red-fg}●{/red-fg}";
+      items.push({
+        text: `${alive} [S] ${s.remote || s.id}`,
+        kind: "session",
+        id: s.id,
+      });
+    }
   }
   chooser.setItems(items.map((it, idx) => ({ text: it.text, data: it, index: idx })));
 }
 
-function openChooser() {
+function openChooser(mode) {
+  chooserMode = mode;
+  chooser.setLabel(mode === "files" ? " select host " : " select host/session ");
   populateChooser();
   choosing = true;
   chooser.show();
@@ -345,29 +510,33 @@ function openChooser() {
 function closeChooser() {
   choosing = false;
   chooser.hide();
-  if (activeWindowIndex >= 0) {
-    windows[activeWindowIndex].term.focus();
-  }
-  screen.render();
+  showActiveWindow();
 }
 
 chooser.on("select", (item) => {
   const data = item ? item.data : null;
   closeChooser();
   if (!data) return;
+  if (chooserMode === "files") {
+    if (data.kind !== "host") return;
+    const host = hosts.get(data.id);
+    const title = host ? (host.hostname || host.remote || data.id) : data.id;
+    createFileWindow({ hostId: data.id, title });
+    return;
+  }
   if (data.kind === "host") {
     const host = hosts.get(data.id);
     const title = host ? (host.hostname || host.remote || data.id) : data.id;
     setStatus(`opening shell on ${title}...`);
     openHostShell(data.id).then((sessionId) => {
-      createWindow({ sessionId, title });
+      createShellWindow({ sessionId, title });
     }).catch((err) => {
       setStatus(`open shell failed: ${err.message}`);
     });
   } else {
     const s = sessions.get(data.id);
     const title = s ? (s.remote || data.id) : data.id;
-    createWindow({ sessionId: data.id, title });
+    createShellWindow({ sessionId: data.id, title });
   }
 });
 
@@ -375,50 +544,133 @@ screen.key(["escape"], () => {
   if (choosing) closeChooser();
 });
 
-function handlePrefixCommand(data) {
-  exitPrefixMode();
-  if (isPrefix(data)) {
-    // Prefix pressed twice: send it through to the shell.
-    const term = activeWindowIndex >= 0 ? windows[activeWindowIndex].term : null;
-    if (term) term._onData(data);
-    return;
-  }
-  const ch = Buffer.isBuffer(data) ? String.fromCharCode(data[0]) : data;
-  switch (ch) {
-    case "c":
-    case "s":
-      openChooser();
-      break;
-    case "n":
-      switchWindow(activeWindowIndex + 1);
-      break;
-    case "p":
-      switchWindow(activeWindowIndex - 1);
-      break;
-    case "0":
-    case "1":
-    case "2":
-    case "3":
-    case "4":
-    case "5":
-    case "6":
-    case "7":
-    case "8":
-    case "9":
-      switchWindow(Number(ch));
-      break;
-    case "&":
-      if (activeWindowIndex >= 0) closeWindow(activeWindowIndex);
-      break;
-    case "d":
-    case "q":
-      process.exit(0);
-      break;
-    default:
-      // unknown prefix command: ignore
-      break;
+// Prefix handling for non-shell windows (shell windows handle it in raw input).
+screen.key(["C-b"], () => {
+  if (!activeWindowIsShell()) enterPrefixMode();
+});
+
+for (const key of ["c", "s", "f", "n", "p", "&", "d", "q", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]) {
+  screen.key([key], () => {
+    if (!prefixMode) return;
+    if (activeWindowIsShell()) return; // shell raw input handles it
+    exitPrefixMode();
+    runGlobalCommand(key);
+  });
+}
+
+// --- File manager helpers ---------------------------------------------------
+
+function refreshFileList(win) {
+  const reqId = fsRequestSeq++;
+  win.fsPending.set(reqId, { path: win.path });
+  if (win.fsWs.readyState === WebSocket.OPEN) {
+    win.fsWs.send(JSON.stringify({ type: "fs_list", request_id: reqId, path: win.path }));
   }
 }
+
+function renderFileList(win) {
+  const items = [];
+  if (win.path !== "." && win.path !== win.sep && !win.path.endsWith(":")) {
+    items.push({ text: "../", kind: "dir", name: ".." });
+  }
+  for (const e of win.entries) {
+    const icon = e.is_dir ? "📁" : "📄";
+    const size = e.is_dir ? "" : ` ${formatBytes(e.size || 0)}`;
+    items.push({ text: `${icon} ${e.name}${size}`, kind: e.is_dir ? "dir" : "file", name: e.name });
+  }
+  win.fm.setItems(items.map((it, idx) => ({ text: it.text, data: it, index: idx })));
+  win.fm.setLabel(` files — ${win.title}:${win.path} `);
+  screen.render();
+}
+
+function formatBytes(n) {
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}K`;
+  return `${(n / 1024 / 1024).toFixed(1)}M`;
+}
+
+function navigateFile(win) {
+  const item = win.fm.getItem(win.fm.selected);
+  if (!item || !item.data) return;
+  const { kind, name } = item.data;
+  if (kind === "dir") {
+    if (name === "..") {
+      navigateFileUp(win);
+    } else {
+      win.path = win.pathModule.join(win.path, name);
+      refreshFileList(win);
+    }
+  }
+}
+
+function navigateFileUp(win) {
+  const parent = win.pathModule.dirname(win.path);
+  if (parent === win.path) return;
+  win.path = parent || ".";
+  refreshFileList(win);
+}
+
+function downloadSelectedFile(win) {
+  const item = win.fm.getItem(win.fm.selected);
+  if (!item || !item.data || item.data.kind !== "file") return;
+  const fileName = item.data.name;
+  const remotePath = win.pathModule.join(win.path, fileName);
+  const transferId = fileTransferSeq++;
+  const localPath = path.join(process.cwd(), fileName);
+  const fd = fs.openSync(localPath, "w");
+  win.fileTransfers.set(transferId, { fd, path: localPath, received: 0 });
+  if (win.fileWs.readyState === WebSocket.OPEN) {
+    win.fileWs.send(JSON.stringify({ type: "file_request", transfer_id: transferId, path: remotePath }));
+    setStatus(`downloading ${fileName}...`);
+  }
+}
+
+function handleFsMessage(win, msg) {
+  if (msg.type !== "fs_list_result") return;
+  const pending = win.fsPending.get(msg.request_id);
+  if (pending) win.fsPending.delete(msg.request_id);
+  if (msg.error) {
+    setStatus(`fs error: ${msg.error}`);
+    return;
+  }
+  win.path = msg.absolute_path || pending?.path || win.path;
+  win.entries = msg.entries || [];
+  renderFileList(win);
+}
+
+function handleFileMessage(win, msg) {
+  switch (msg.type) {
+    case "file_start": {
+      const tx = win.fileTransfers.get(msg.transfer_id);
+      if (!tx) return;
+      tx.size = msg.size || 0;
+      break;
+    }
+    case "file_chunk": {
+      const tx = win.fileTransfers.get(msg.transfer_id);
+      if (!tx) return;
+      const buf = Buffer.from(msg.data || "", "base64");
+      fs.writeSync(tx.fd, buf);
+      tx.received += buf.length;
+      break;
+    }
+    case "file_done": {
+      const tx = win.fileTransfers.get(msg.transfer_id);
+      if (!tx) return;
+      win.fileTransfers.delete(msg.transfer_id);
+      fs.closeSync(tx.fd);
+      if (msg.error) {
+        setStatus(`download failed: ${msg.error}`);
+        try { fs.unlinkSync(tx.path); } catch {}
+      } else {
+        setStatus(`downloaded ${path.basename(tx.path)} (${formatBytes(tx.received)})`);
+      }
+      break;
+    }
+  }
+}
+
+// --- Live session/host list -------------------------------------------------
 
 function applySnapshot(snapshot) {
   sessions.clear();
