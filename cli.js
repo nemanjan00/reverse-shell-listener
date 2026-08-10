@@ -3,8 +3,7 @@ import blessed from "blessed";
 import { WebSocket } from "ws";
 import { URL } from "node:url";
 
-// Remote operator TUI. Connects to the listener's WebSocket endpoints with an
-// API token and gives a tmux-like session list + shell interface.
+// tmux-like remote operator TUI.
 //
 // Usage:
 //   RSL_URL=https://rsl.example.com RSL_API_TOKEN=... node cli.js
@@ -26,7 +25,7 @@ for (let i = 0; i < args.length; i++) {
       break;
     case "--help":
     case "-h":
-      console.log(`usage: node cli.js [--url URL] [--token TOKEN]`);
+      console.log("usage: node cli.js [--url URL] [--token TOKEN]");
       process.exit(0);
   }
 }
@@ -40,11 +39,14 @@ if (!apiToken) {
   process.exit(1);
 }
 
+// Force a 256-color terminal name so remote apps use full colors.
+process.env.TERM = process.env.TERM || "xterm-256color";
+
 const parsed = new URL(baseUrl);
 const wsScheme = parsed.protocol === "https:" ? "wss" : "ws";
 const wsOrigin = `${wsScheme}://${parsed.host}`;
-
-const wsHeaders = { "X-API-Token": apiToken };
+const apiHeaders = { "X-API-Token": apiToken };
+const wsHeaders = apiHeaders;
 
 const screen = blessed.screen({
   smartCSR: true,
@@ -52,7 +54,7 @@ const screen = blessed.screen({
   fullUnicode: true,
 });
 
-const statusBar = blessed.box({
+const topBar = blessed.box({
   parent: screen,
   top: 0,
   left: 0,
@@ -63,84 +65,82 @@ const statusBar = blessed.box({
   tags: true,
 });
 
-const sidebar = blessed.list({
-  parent: screen,
-  top: 1,
-  left: 0,
-  width: 32,
-  height: "100%-2",
-  label: " hosts / sessions ",
-  border: { type: "line" },
-  style: {
-    fg: "white",
-    bg: "black",
-    border: { fg: "cyan" },
-    selected: { fg: "black", bg: "cyan" },
-  },
-  keys: true,
-  vi: true,
-  tags: true,
-});
-
 const mainBox = blessed.box({
   parent: screen,
   top: 1,
-  left: 32,
-  width: "100%-32",
+  left: 0,
+  width: "100%",
   height: "100%-2",
   label: " shell ",
   border: { type: "line" },
   style: { border: { fg: "cyan" } },
-  content: " select a host/session and press Enter ",
-  align: "center",
-  valign: "middle",
 });
 
-const hintBar = blessed.box({
+const bottomBar = blessed.box({
   parent: screen,
   bottom: 0,
   left: 0,
   width: "100%",
   height: 1,
   style: { fg: "white", bg: "blue" },
-  content: " Enter=open  F12=focus list/shell  Ctrl+Q=quit ",
+  content: "",
+  tags: true,
+});
+
+const chooser = blessed.list({
+  parent: screen,
+  top: "center",
+  left: "center",
+  width: "50%",
+  height: "50%",
+  label: " select host/session ",
+  border: { type: "line" },
+  hidden: true,
+  keys: true,
+  vi: true,
+  style: {
+    fg: "white",
+    bg: "black",
+    border: { fg: "magenta" },
+    selected: { fg: "black", bg: "magenta" },
+  },
   tags: true,
 });
 
 function setStatus(text) {
-  statusBar.setContent(` rsl-cli — ${parsed.host} — ${text}`);
+  topBar.setContent(` rsl-cli — ${parsed.host} — ${text}`);
   screen.render();
 }
 
-const sessions = new Map(); // id -> meta
-const hosts = new Map(); // id -> meta
-let activeTerm = null;
-let activeWs = null;
-let pendingShells = new Map(); // hostId -> { channelId, resolve }
+const sessions = new Map();
+const hosts = new Map();
+const windows = []; // { id, title, term, ws, hostId?, sessionId? }
+let activeWindowIndex = -1;
+let prefixMode = false;
+let prefixTimer = null;
+let choosing = false;
+const pendingShells = new Map();
 
-function itemLabel(item) {
-  const alive = item.alive ? "{green-fg}●{/green-fg}" : "{red-fg}●{/red-fg}";
-  if (item.kind === "host") {
-    const who = item.hostname ? `${item.username || "?"}@${item.hostname}` : item.remote;
-    return `${alive} [H] ${who} ${item.os || ""}/${item.arch || ""}`;
+function isPrefix(data) {
+  if (Buffer.isBuffer(data)) {
+    return data.length === 1 && data[0] === 0x02;
   }
-  const remote = item.remote || "unknown";
-  return `${alive} [S] ${remote}`;
+  return data === "\x02";
 }
 
-function rebuildList() {
-  const selected = sidebar.selected;
-  const items = [];
-  for (const h of hosts.values()) {
-    items.push({ id: h.id, meta: h });
+function updateBottomBar() {
+  const parts = [];
+  for (let i = 0; i < windows.length; i++) {
+    const marker = i === activeWindowIndex ? "*" : " ";
+    parts.push(`[${i}]${marker}${windows[i].title}`);
   }
-  for (const s of sessions.values()) {
-    items.push({ id: s.id, meta: s });
+  let text = parts.join("  ");
+  if (prefixMode) {
+    text += "  {inverse} PREFIX {/inverse}";
+  } else {
+    text += "  ^B=prefix";
   }
-  sidebar.setItems(items.map((i) => ({ text: itemLabel(i.meta), data: i })));
-  if (selected != null && selected < items.length) {
-    sidebar.select(selected);
-  }
+  bottomBar.setContent(text);
   screen.render();
 }
 
@@ -152,11 +152,152 @@ function sendResize(term, ws) {
   }
 }
 
-function openShellForHost(hostId) {
+function wrapTerminalInput(term) {
+  const original = term._onData;
+  screen.program.input.removeListener("data", original);
+  const handler = (data) => {
+    if (choosing) return;
+    if (screen.focused !== term) return;
+    if (prefixMode) {
+      handlePrefixCommand(data);
+      return;
+    }
+    if (isPrefix(data)) {
+      enterPrefixMode();
+      return;
+    }
+    original.call(term, data);
+  };
+  screen.program.input.on("data", handler);
+  term._onData = handler;
+}
+
+function enterPrefixMode() {
+  prefixMode = true;
+  updateBottomBar();
+  if (prefixTimer) clearTimeout(prefixTimer);
+  prefixTimer = setTimeout(() => {
+    prefixMode = false;
+    updateBottomBar();
+  }, 3000);
+}
+
+function exitPrefixMode() {
+  prefixMode = false;
+  if (prefixTimer) clearTimeout(prefixTimer);
+  updateBottomBar();
+}
+
+function closeWindow(idx) {
+  const win = windows[idx];
+  if (!win) return;
+  try {
+    win.ws.close();
+  } catch {
+    /* ignore */
+  }
+  win.term.destroy();
+  windows.splice(idx, 1);
+  if (activeWindowIndex === idx) {
+    activeWindowIndex = windows.length ? Math.min(idx, windows.length - 1) : -1;
+  } else if (activeWindowIndex > idx) {
+    activeWindowIndex--;
+  }
+  showActiveWindow();
+}
+
+function showActiveWindow() {
+  for (let i = 0; i < windows.length; i++) {
+    const win = windows[i];
+    if (i === activeWindowIndex) {
+      win.term.show();
+      win.term.setFront();
+      win.term.focus();
+      mainBox.setLabel(` shell — ${win.title} `);
+      sendResize(win.term, win.ws);
+    } else {
+      win.term.hide();
+    }
+  }
+  if (activeWindowIndex < 0) {
+    mainBox.setLabel(" shell ");
+    mainBox.setContent("{center}no windows — ^B c to open a shell{/center}");
+  }
+  updateBottomBar();
+  screen.render();
+}
+
+function createWindow({ sessionId, title }) {
+  const winIndex = windows.length;
+  const term = blessed.terminal({
+    parent: mainBox,
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    terminal: "xterm-256color",
+    cursor: "block",
+    cursorBlink: true,
+    screenKeys: false,
+    style: { fg: "white", bg: "black" },
+    hidden: winIndex !== activeWindowIndex,
+  });
+  wrapTerminalInput(term);
+
+  const ws = new WebSocket(`${wsOrigin}/api/ws/session/${sessionId}`, { headers: wsHeaders });
+  const win = { id: sessionId, title, term, ws };
+  windows.push(win);
+
+  term.handler = (data) => {
+    if (ws.readyState === WebSocket.OPEN) ws.send(data);
+  };
+
+  term.on("resize", () => {
+    if (windows[activeWindowIndex] === win) sendResize(term, ws);
+  });
+
+  ws.on("open", () => {
+    setStatus(`connected to ${title}`);
+    sendResize(term, ws);
+  });
+
+  ws.on("message", (data, isBinary) => {
+    if (!isBinary && typeof data === "string") {
+      try {
+        const msg = JSON.parse(data);
+        if (msg.type === "exit") term.write("\r\n[session exited]\r\n");
+      } catch {
+        // ignore non-JSON text
+      }
+      return;
+    }
+    term.write(data);
+  });
+
+  ws.on("close", () => {
+    term.write("\r\n[disconnected]\r\n");
+  });
+
+  ws.on("error", (err) => {
+    setStatus(`ws error: ${err.message}`);
+  });
+
+  activeWindowIndex = winIndex;
+  showActiveWindow();
+  return win;
+}
+
+function switchWindow(idx) {
+  if (idx < 0 || idx >= windows.length) return;
+  activeWindowIndex = idx;
+  showActiveWindow();
+}
+
+function openHostShell(hostId) {
   return new Promise((resolve, reject) => {
     fetch(`${baseUrl.replace(/\/$/, "")}/api/hosts/${hostId}/shells`, {
       method: "POST",
-      headers: { "X-API-Token": apiToken, "Content-Type": "application/json" },
+      headers: { ...apiHeaders, "Content-Type": "application/json" },
       body: JSON.stringify({ cols: 80, rows: 24 }),
     })
       .then(async (res) => {
@@ -171,98 +312,111 @@ function openShellForHost(hostId) {
   });
 }
 
-function attachSession(sessionId) {
-  if (activeWs) {
-    try {
-      activeWs.close();
-    } catch {
-      /* ignore */
-    }
+function populateChooser() {
+  const items = [];
+  for (const h of hosts.values()) {
+    const who = h.hostname ? `${h.username || "?"}@${h.hostname}` : h.remote;
+    const alive = h.alive ? "{green-fg}●{/green-fg}" : "{red-fg}●{/red-fg}";
+    items.push({
+      text: `${alive} [H] ${who} ${h.os || ""}/${h.arch || ""}`,
+      kind: "host",
+      id: h.id,
+    });
   }
-  if (activeTerm) {
-    activeTerm.destroy();
-    activeTerm = null;
+  for (const s of sessions.values()) {
+    const alive = s.alive ? "{green-fg}●{/green-fg}" : "{red-fg}●{/red-fg}";
+    items.push({
+      text: `${alive} [S] ${s.remote || s.id}`,
+      kind: "session",
+      id: s.id,
+    });
   }
+  chooser.setItems(items.map((it, idx) => ({ text: it.text, data: it, index: idx })));
+}
 
-  const meta = sessions.get(sessionId);
-  const label = meta ? (meta.remote || sessionId) : sessionId;
-  mainBox.setLabel(` shell — ${label} `);
-
-  const term = blessed.terminal({
-    parent: mainBox,
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    handler: (data) => {
-      if (activeWs && activeWs.readyState === WebSocket.OPEN) {
-        activeWs.send(data);
-      }
-    },
-    cursor: "block",
-    cursorBlink: true,
-    screenKeys: false,
-    style: { fg: "white", bg: "black" },
-  });
-
-  term.on("resize", () => {
-    if (activeTerm === term) sendResize(term, activeWs);
-  });
-
-  const ws = new WebSocket(`${wsOrigin}/api/ws/session/${sessionId}`, { headers: wsHeaders });
-  activeWs = ws;
-  activeTerm = term;
-
-  ws.on("open", () => {
-    setStatus("shell connected");
-    sendResize(term, ws);
-    term.focus();
-  });
-
-  ws.on("message", (data, isBinary) => {
-    if (!isBinary && typeof data === "string") {
-      try {
-        const msg = JSON.parse(data);
-        if (msg.type === "exit") {
-          setStatus("shell exited");
-        }
-      } catch {
-        // ignore non-JSON text
-      }
-      return;
-    }
-    term.write(data);
-  });
-
-  ws.on("close", () => {
-    setStatus("shell disconnected");
-    if (activeTerm === term) {
-      term.write("\r\n[disconnected]\r\n");
-    }
-  });
-
-  ws.on("error", (err) => {
-    setStatus(`shell error: ${err.message}`);
-  });
-
-  term.focus();
+function openChooser() {
+  populateChooser();
+  choosing = true;
+  chooser.show();
+  chooser.focus();
   screen.render();
 }
 
-async function handleSelect() {
-  const item = sidebar.getItem(sidebar.selected);
-  if (!item || !item.data) return;
-  const { id, meta } = item.data;
-  if (meta.kind === "host") {
-    setStatus(`opening shell on ${meta.id}...`);
-    try {
-      const sessionId = await openShellForHost(id);
-      attachSession(sessionId);
-    } catch (err) {
+function closeChooser() {
+  choosing = false;
+  chooser.hide();
+  if (activeWindowIndex >= 0) {
+    windows[activeWindowIndex].term.focus();
+  }
+  screen.render();
+}
+
+chooser.on("select", (item) => {
+  const data = item ? item.data : null;
+  closeChooser();
+  if (!data) return;
+  if (data.kind === "host") {
+    const host = hosts.get(data.id);
+    const title = host ? (host.hostname || host.remote || data.id) : data.id;
+    setStatus(`opening shell on ${title}...`);
+    openHostShell(data.id).then((sessionId) => {
+      createWindow({ sessionId, title });
+    }).catch((err) => {
       setStatus(`open shell failed: ${err.message}`);
-    }
+    });
   } else {
-    attachSession(id);
+    const s = sessions.get(data.id);
+    const title = s ? (s.remote || data.id) : data.id;
+    createWindow({ sessionId: data.id, title });
+  }
+});
+
+screen.key(["escape"], () => {
+  if (choosing) closeChooser();
+});
+
+function handlePrefixCommand(data) {
+  exitPrefixMode();
+  if (isPrefix(data)) {
+    // Prefix pressed twice: send it through to the shell.
+    const term = activeWindowIndex >= 0 ? windows[activeWindowIndex].term : null;
+    if (term) term._onData(data);
+    return;
+  }
+  const ch = Buffer.isBuffer(data) ? String.fromCharCode(data[0]) : data;
+  switch (ch) {
+    case "c":
+    case "s":
+      openChooser();
+      break;
+    case "n":
+      switchWindow(activeWindowIndex + 1);
+      break;
+    case "p":
+      switchWindow(activeWindowIndex - 1);
+      break;
+    case "0":
+    case "1":
+    case "2":
+    case "3":
+    case "4":
+    case "5":
+    case "6":
+    case "7":
+    case "8":
+    case "9":
+      switchWindow(Number(ch));
+      break;
+    case "&":
+      if (activeWindowIndex >= 0) closeWindow(activeWindowIndex);
+      break;
+    case "d":
+    case "q":
+      process.exit(0);
+      break;
+    default:
+      // unknown prefix command: ignore
+      break;
   }
 }
 
@@ -271,7 +425,7 @@ function applySnapshot(snapshot) {
   hosts.clear();
   for (const s of snapshot.sessions || []) sessions.set(s.id, s);
   for (const h of snapshot.hosts || []) hosts.set(h.id, h);
-  rebuildList();
+  if (choosing) populateChooser();
 }
 
 function handleEvent(msg) {
@@ -281,31 +435,26 @@ function handleEvent(msg) {
       break;
     case "add":
       if (msg.session) sessions.set(msg.session.id, msg.session);
-      rebuildList();
       break;
     case "update":
       if (msg.session) sessions.set(msg.session.id, msg.session);
-      rebuildList();
       break;
     case "remove":
       if (msg.session) sessions.delete(msg.session.id);
-      rebuildList();
       break;
     case "host_add":
       if (msg.host) hosts.set(msg.host.id, msg.host);
-      rebuildList();
       break;
     case "host_update":
       if (msg.host) hosts.set(msg.host.id, msg.host);
-      rebuildList();
       break;
     case "host_remove":
       if (msg.host) hosts.delete(msg.host.id);
-      rebuildList();
       break;
   }
+  if (choosing) populateChooser();
 
-  // Resolve pending shell-open promises by matching the new session's remote.
+  // Resolve pending shell-open promises.
   for (const [hostId, pending] of pendingShells.entries()) {
     const match = [...sessions.values()].find(
       (s) => s.alive && s.transport === "mux" && s.remote.endsWith(` ch#${pending.channelId}`)
@@ -323,8 +472,7 @@ listWs.on("open", () => setStatus("connected"));
 
 listWs.on("message", (data) => {
   try {
-    const msg = JSON.parse(data.toString());
-    handleEvent(msg);
+    handleEvent(JSON.parse(data.toString()));
   } catch (err) {
     setStatus(`bad message: ${err.message}`);
   }
@@ -333,21 +481,5 @@ listWs.on("message", (data) => {
 listWs.on("close", () => setStatus("disconnected"));
 listWs.on("error", (err) => setStatus(`list error: ${err.message}`));
 
-sidebar.on("select", handleSelect);
-
-screen.key(["enter"], () => {
-  if (screen.focused === sidebar) handleSelect();
-});
-
-screen.key(["f12"], () => {
-  if (screen.focused === sidebar && activeTerm) {
-    activeTerm.focus();
-  } else {
-    sidebar.focus();
-  }
-});
-
-screen.key(["C-q"], () => process.exit(0));
-
-sidebar.focus();
+updateBottomBar();
 screen.render();
