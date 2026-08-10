@@ -31,6 +31,7 @@ A single-host, multi-transport reverse-shell catcher with a browser dashboard.
 | 🔧 **Resizable UI** | Drag to resize sidebar and log panels |
 | 🔐 **Auth + CSRF** | Session-cookie login protecting dashboard, REST API, and browser WebSockets |
 | 🏗️ **Build panel** | Cross-compile the Go mux client from the dashboard with the server URL baked in |
+| 🖥️ **Remote CLI** | `tmux`-based operator console with host list, shell windows, file manager, and desktop notifications |
 
 ## 🚀 Quick start
 
@@ -41,6 +42,31 @@ AUTH_USER=admin AUTH_PASS=s3cr3t npm start
 ```
 
 Then browse to `http://localhost:8080`. `AUTH_USER` / `AUTH_PASS` are required.
+
+## 🖥️ Remote CLI
+
+A `tmux`-based operator console is included for users who prefer a terminal
+workflow or want desktop notifications.
+
+```bash
+export RSL_URL="https://rsl.example.com/"
+export RSL_TOKEN="YOUR_API_TOKEN"
+npm run cli
+```
+
+The first run creates a tmux session named `rsl-cli` and attaches you to it.
+Inside the dashboard:
+
+- `Enter` — open a new shell window for the selected host/session
+- `f` — open a Blessed file-manager window for the selected host
+- `r` — refresh the list
+- `q` — quit the dashboard (existing tmux windows stay open)
+
+Use normal tmux keys to switch and close shell/file windows. The CLI uses
+`RSL_TOKEN` (or `RSL_API_TOKEN`) and talks to the same REST/WebSocket API as
+the dashboard.
+
+Requirements: `tmux` must be installed locally.
 
 ## 🐳 Docker (preferred)
 
@@ -224,6 +250,7 @@ Windows PTY is not included in this build.
 | `npm run watch` | Rebuild on change |
 | `npm start` | Build + run the listener |
 | `npm run dev` | Build + run with node --watch |
+| `npm run cli` | Start the tmux-based remote operator console |
 
 ## ⚙️ Configuration (env vars)
 
@@ -283,6 +310,11 @@ not need a session cookie and are exempt from CSRF.
 - `/api/ws/log` — JSON event-log stream; replays history then streams live entries
 - `/api/ws/host/:id/file` — file transfer relay to a mux host (JSON ↔ protobuf)
 - `/api/ws/host/:id/fs` — native file-system browser relay (JSON ↔ protobuf)
+
+Browser WebSockets require a valid `rsl_session` cookie. When `API_TOKEN` is set,
+operator WebSocket endpoints also accept it via `Authorization: Bearer <token>`
+or `X-API-Token: <token>` so programmatic clients such as the remote CLI can
+connect without a session cookie.
 
 Mux hosts advertise a feature bitmap in their `Hello` message. The dashboard
 uses it to hide controls (file transfer, file manager, proxy) that older
@@ -367,6 +399,7 @@ flowchart LR
         H[Browser dashboard]
         I[REST API]
         J[WebSocket streams]
+        K[tmux CLI]
     end
     A --> |1337| E
     B --> |1338| E
@@ -377,6 +410,7 @@ flowchart LR
     E --> H
     E --> I
     E --> J
+    E --> K
 ```
 
 ## 📄 License

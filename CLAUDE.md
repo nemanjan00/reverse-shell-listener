@@ -14,6 +14,7 @@ CSRF-protected session auth.
 
 ```
 api/           HTTP/WS endpoints (auth, REST, browser WS, build/download)
+cli/           tmux-based remote operator console (cli.js, relay.js, file-manager.js)
 core/          session registry, host registry, session model, event log
 transports/    inbound shell transports: tcp, tls, webshell, mux, HTTP CONNECT proxy
 tls/           self-signed cert generation for the TLS transport
@@ -24,7 +25,7 @@ public/        static dashboard shell (index.html); bundle output in public/dist
 build.js       esbuild bundler config (src/ -> public/dist/)
 server.js      process entrypoint: wires the Express app, listeners, auth
 config.js      env-driven config
-Dockerfile     3-stage build: web bundle -> Go client -> node:22-alpine runtime
+Dockerfile     single-stage node:22-alpine image with Go + openssl; warms Go build cache
 ```
 
 ## Commands
@@ -45,6 +46,11 @@ cd client && go build -o rsl-client ./cmd
 # Regenerate Go protobuf bindings after editing proto/mux.proto
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 protoc --go_out=client --go_opt=module=github.com/nemanjan00/reverse-shell-listener/client proto/mux.proto
+
+# Remote CLI (requires tmux)
+export RSL_URL=https://rsl.example.com/
+export RSL_TOKEN=YOUR_API_TOKEN
+npm run cli
 
 # Docker
 docker build -t reverse-shell-listener .
@@ -76,6 +82,13 @@ Authentication is via a signed `rsl_session` cookie (HMAC-SHA256, 12h TTL,
   `/api/ws/log` — express-ws upgrades **bypass** `app.use()` middleware, so each
   handler re-checks the cookie via `authorized(req)` and closes the socket with
   `1008` on failure.
+- the host-targeted WS endpoints `/api/ws/host/:id/file` and
+  `/api/ws/host/:id/fs` also require a valid session cookie.
+
+When `API_TOKEN` is set, all operator WebSocket endpoints additionally accept
+`Authorization: Bearer <token>` or `X-API-Token: <token>` (passed as WebSocket
+connection headers). This lets programmatic clients like `cli.js` connect
+without a session cookie; API-token clients are also exempt from CSRF.
 
 Mutating REST endpoints also require a double-submit CSRF token: login sets a
 non-`HttpOnly` `rsl_csrf` cookie, and the frontend must send its value in the
@@ -94,6 +107,18 @@ operator typing secrets.
 Security headers (`X-Content-Type-Options`, `X-Frame-Options`,
 `Referrer-Policy`, CSP) are set on every response; HSTS is added only when the
 request is detected as HTTPS (e.g., behind an HTTPS reverse proxy).
+
+## CLI conventions
+
+- `cli.js` bootstraps a tmux session named `rsl-cli` and renders a Blessed
+  dashboard listing hosts and sessions. It requires `tmux` to be installed.
+- `cli/relay.js` runs inside a tmux window and forwards a single
+  `/api/ws/session/:id` WebSocket to stdin/stdout for a real local terminal.
+- `cli/file-manager.js` runs inside a tmux window and provides a Blessed file
+  manager for one host over `/api/ws/host/:id/fs` and `/api/ws/host/:id/file`.
+- The CLI authenticates with `RSL_TOKEN` (or `RSL_API_TOKEN`) via the
+  `X-API-Token` header on both REST and WebSocket connections.
+- `RSL_NOTIFY=0` disables desktop notifications.
 
 ## Conventions
 
@@ -149,6 +174,12 @@ request is detected as HTTPS (e.g., behind an HTTPS reverse proxy).
   resizable panels, session scrollback download, and copyable payload examples.
 
 ## Docker image
+
+The Dockerfile is a single-stage `node:22-alpine` image that installs `go` and
+`openssl`, bundles the frontend, downloads Go modules, and warms the Go build
+cache for common client targets. The output binaries are deleted; only the
+module and build caches remain, so `/dl` and `/api/build` can link a fresh
+binary quickly at runtime.
 
 Published to Docker Hub at `docker pull nemanjan00/reverse-shell-listener:latest`
 (and `:<git-short-sha>` for pinned versions). Build context is kept lean via
