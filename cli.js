@@ -129,9 +129,17 @@ const chooser = blessed.list({
   tags: true,
 });
 
-function setStatus(text) {
-  topBar.setContent(` rsl-cli — ${parsed.host} — ${text}`);
+function renderTopBar(msg = "") {
+  const alive = [...hosts.values()].filter((h) => h.alive).length;
+  const total = hosts.size;
+  let text = ` rsl-cli — ${parsed.host} — ${alive}/${total} hosts`;
+  if (msg) text += ` — ${msg}`;
+  topBar.setContent(text);
   screen.render();
+}
+
+function setStatus(text) {
+  renderTopBar(text);
 }
 
 const sessions = new Map();
@@ -169,7 +177,7 @@ function updateBottomBar() {
   if (prefixMode) {
     text += "  {inverse} PREFIX {/inverse}";
   } else {
-    text += "  ^B c/s/f";
+    text += "  ^B s=list  c=shell  f=files";
   }
   bottomBar.setContent(text);
   screen.render();
@@ -311,8 +319,16 @@ function showActiveWindow() {
     }
   }
   if (activeWindowIndex < 0) {
-    mainBox.setLabel(" shell ");
-    mainBox.setContent("{center}no windows — ^B c to open a shell{/center}");
+    mainBox.setLabel(" rsl-cli ");
+    const alive = [...hosts.values()].filter((h) => h.alive).length;
+    mainBox.setContent(
+      `{center}{bold}rsl-cli{/bold}\n\n` +
+        `${alive} host(s) online\n\n` +
+        `^B s  list hosts\n` +
+        `^B c  new terminal\n` +
+        `^B f  file manager\n` +
+        `^B d  detach{/center}`
+    );
   }
   updateBottomBar();
   screen.render();
@@ -745,18 +761,19 @@ function handleEvent(msg) {
 
 const listWs = new WebSocket(`${wsOrigin}/api/ws/sessions`, { headers: wsHeaders });
 
-listWs.on("open", () => setStatus("connected"));
+listWs.on("open", () => renderTopBar("connected"));
 
 listWs.on("message", (data) => {
   try {
     handleEvent(JSON.parse(data.toString()));
+    renderTopBar();
   } catch (err) {
-    setStatus(`bad message: ${err.message}`);
+    renderTopBar(`bad message: ${err.message}`);
   }
 });
 
-listWs.on("close", () => setStatus("disconnected"));
-listWs.on("error", (err) => setStatus(`list error: ${err.message}`));
+listWs.on("close", (code, reason) => renderTopBar(`disconnected ${code} ${reason}`));
+listWs.on("error", (err) => renderTopBar(`list error: ${err.message}`));
 
 updateBottomBar();
 screen.render();
