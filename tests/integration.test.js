@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { WebSocket } from "ws";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -40,6 +41,57 @@ async function getCsrf(baseUrl, sessionCookie) {
   });
   const body = await res.json();
   return body.csrf;
+}
+
+function openWs(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url, { headers });
+    const timer = setTimeout(() => reject(new Error("websocket open timeout")), 5000);
+    ws.on("open", () => {
+      clearTimeout(timer);
+      resolve(ws);
+    });
+    ws.on("error", reject);
+  });
+}
+
+function nextMessage(ws, timeoutMs = 3000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("websocket message timeout")), timeoutMs);
+    const onMsg = (data) => {
+      clearTimeout(timer);
+      ws.off("message", onMsg);
+      resolve(data.toString());
+    };
+    ws.on("message", onMsg);
+  });
+}
+
+function nextClose(ws, timeoutMs = 3000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("websocket close timeout")), timeoutMs);
+    ws.on("close", (code, reason) => {
+      clearTimeout(timer);
+      resolve({ code, reason: reason ? reason.toString() : "" });
+    });
+  });
+}
+
+async function assertRejectsWs(url, headers, label) {
+  const ws = new WebSocket(url, { headers });
+  const result = await Promise.race([
+    nextMessage(ws, 2000).then((msg) => ({ ok: true, msg })),
+    nextClose(ws, 2000).then((close) => ({ ok: false, close })),
+  ]);
+  if (result.ok) {
+    throw new Error(`${label}: expected rejection but got message: ${result.msg.slice(0, 200)}`);
+  }
+  // Server sends 1008, but the client sometimes sees 1005 if the close frame
+  // is lost during the abrupt teardown. Both mean "rejected".
+  assert.ok(
+    result.close.code === 1008 || result.close.code === 1005,
+    `${label}: expected close code 1008 or 1005, got ${result.close.code}`
+  );
 }
 
 describe("integration", () => {
@@ -191,5 +243,53 @@ describe("integration", () => {
       headers: { "x-api-token": "apitok" },
     });
     assert.equal(res.status, 404);
+  });
+
+  it("allows API token access to /api/ws/sessions", async () => {
+    const ws = await openWs(`${baseUrl.replace("http", "ws")}/api/ws/sessions`, {
+      "x-api-token": "apitok",
+    });
+    const msg = await nextMessage(ws);
+    const body = JSON.parse(msg);
+    assert.equal(body.type, "snapshot");
+    assert.ok(Array.isArray(body.sessions));
+    assert.ok(Array.isArray(body.hosts));
+    ws.close();
+  });
+
+  it("rejects /api/ws/sessions without auth", async () => {
+    await assertRejectsWs(`${baseUrl.replace("http", "ws")}/api/ws/sessions`, {}, "no auth");
+  });
+
+  it("rejects /api/ws/sessions with a wrong API token", async () => {
+    await assertRejectsWs(
+      `${baseUrl.replace("http", "ws")}/api/ws/sessions`,
+      { "x-api-token": "wrong" },
+      "bad token"
+    );
+  });
+
+  it("allows API token access to /api/ws/log", async () => {
+    const ws = await openWs(`${baseUrl.replace("http", "ws")}/api/ws/log`, {
+      "x-api-token": "apitok",
+    });
+    // The log may be empty if no events have occurred; just verify the
+    // connection stays open without being rejected.
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, 500);
+      ws.on("close", (code) => {
+        clearTimeout(timer);
+        reject(new Error(`/api/ws/log closed unexpectedly with code ${code}`));
+      });
+    });
+    ws.close();
+  });
+
+  it("rejects /api/ws/host/:id/file for missing host even with API token", async () => {
+    const ws = new WebSocket(`${baseUrl.replace("http", "ws")}/api/ws/host/h999/file`, {
+      headers: { "x-api-token": "apitok" },
+    });
+    const close = await nextClose(ws);
+    assert.equal(close.code, 1008);
   });
 });
