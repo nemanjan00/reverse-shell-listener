@@ -350,7 +350,9 @@ function createShellWindow({ sessionId, title }) {
     cursorBlink: true,
     screenKeys: false,
     handler: (data) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(Buffer.isBuffer(data) ? data : Buffer.from(data, "utf-8"));
+      }
     },
     style: { fg: "white", bg: "black" },
     hidden: winIndex !== activeWindowIndex,
@@ -382,7 +384,8 @@ function createShellWindow({ sessionId, title }) {
       }
       return;
     }
-    term.write(data);
+    // blessed.term.js expects a string, not a Buffer.
+    term.write(Buffer.isBuffer(data) ? data.toString("utf-8") : data);
   });
 
   ws.on("close", () => {
