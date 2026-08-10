@@ -120,6 +120,7 @@ if (!process.env.TMUX) {
       `RSL_TMUX_SOCKET=${tmuxSocket} exec node ${JSON.stringify(here)}`,
     ]);
   }
+  tmux(["set-option", "-t", "rsl-cli", "mouse", "on"]);
 
   const attach = spawn("tmux", ["-S", tmuxSocket, "attach", "-t", "rsl-cli"], {
     stdio: "inherit",
