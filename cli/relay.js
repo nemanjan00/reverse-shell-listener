@@ -40,18 +40,21 @@ ws.on("open", () => {
 });
 
 ws.on("message", (data, isBinary) => {
-  if (!isBinary && typeof data === "string") {
-    try {
-      const msg = JSON.parse(data);
-      if (msg.type === "exit") {
-        process.stdout.write("\r\n[session exited]\r\n");
-        process.exit(0);
-      }
-    } catch {
-      // ignore
+  // Control frames are JSON text; shell output is binary. Try parsing
+  // everything first, just in case a frame arrives as binary in some ws
+  // configurations.
+  const text = Buffer.isBuffer(data) ? data.toString("utf-8") : data;
+  try {
+    const msg = JSON.parse(text);
+    if (msg.type === "exit") {
+      process.stdout.write("\r\n[session exited]\r\n");
+      process.exit(0);
     }
     return;
+  } catch {
+    // not JSON: treat as shell output
   }
+  if (!isBinary) return; // stray text frame that isn't JSON
   process.stdout.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
 });
 
