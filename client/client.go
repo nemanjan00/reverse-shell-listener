@@ -71,7 +71,7 @@ func (c *Config) token() string {
 	if c.Token != "" {
 		return c.Token
 	}
-	if t := os.Getenv("RSL_TOKEN"); t != "" {
+	if t := os.Getenv("RSL_BUILD_TOKEN"); t != "" {
 		return t
 	}
 	return defaultToken
@@ -838,7 +838,7 @@ options:
                      or RSL_SERVER env var)
   -t, --tags TAGS    free-form label shown in the dashboard
   -c, --shell CMD    shell command to run for each channel (default: $SHELL)
-  --token TOKEN      BUILD_TOKEN the server expects (or RSL_TOKEN env var)
+  --token TOKEN      BUILD_TOKEN the server expects (or RSL_BUILD_TOKEN env var)
   -h, --help         show this help`
 }
 

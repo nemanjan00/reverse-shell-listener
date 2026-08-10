@@ -1426,9 +1426,9 @@ const PayloadsModal = () =>
       };
       const makeMuxPayload = () => {
         if (app.payloadOs === "windows") {
-          return `$env:RSL_SERVER = '${wsProto}://${host}/mux'; $env:RSL_TOKEN = '${token}'; .\\rsl-client.exe`;
+          return `$env:RSL_SERVER = '${wsProto}://${host}/mux'; $env:RSL_BUILD_TOKEN = '${token}'; .\\rsl-client.exe`;
         }
-        return `RSL_SERVER=${wsProto}://${host}/mux RSL_TOKEN=${token} ./rsl-client`;
+        return `RSL_SERVER=${wsProto}://${host}/mux RSL_BUILD_TOKEN=${token} ./rsl-client`;
       };
       const makeMuxDownloadPayload = () => {
         if (app.payloadOs === "windows") {
