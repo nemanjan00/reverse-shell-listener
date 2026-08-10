@@ -10,12 +10,23 @@ RUN node build.js
 
 # --- Build stage: Go client (mux implant) ------------------------------------
 FROM golang:1.23-alpine AS go
-WORKDIR /client
+
+# Build in the same path the runtime will use so the Go build cache is valid
+# after copying it to the runtime image.
+WORKDIR /app/client
 COPY client/go.mod client/go.sum ./
 RUN go mod download
 COPY client ./ 
 COPY proto ./../proto
-RUN CGO_ENABLED=0 go build -o /rsl-client ./cmd
+
+# Pre-build common targets to warm the module + build caches. This makes the
+# first /api/build or /dl request for these targets fast; other targets still
+# benefit from the shared module cache.
+RUN CGO_ENABLED=0 go build -o /rsl-client ./cmd && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /tmp/rsl-client-linux-arm64 ./cmd && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o /tmp/rsl-client-windows-amd64.exe ./cmd && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o /tmp/rsl-client-darwin-amd64 ./cmd && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o /tmp/rsl-client-darwin-arm64 ./cmd
 
 # --- Runtime stage -----------------------------------------------------------
 FROM node:22-alpine
