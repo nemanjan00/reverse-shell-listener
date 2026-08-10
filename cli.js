@@ -337,6 +337,8 @@ function showActiveWindow() {
 
 function createShellWindow({ sessionId, title }) {
   const winIndex = windows.length;
+  const ws = new WebSocket(`${wsOrigin}/api/ws/session/${sessionId}`, { headers: wsHeaders });
+
   const term = blessed.terminal({
     parent: mainBox,
     top: 0,
@@ -347,18 +349,16 @@ function createShellWindow({ sessionId, title }) {
     cursor: "block",
     cursorBlink: true,
     screenKeys: false,
+    handler: (data) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+    },
     style: { fg: "white", bg: "black" },
     hidden: winIndex !== activeWindowIndex,
   });
   wrapTerminalInput(term);
 
-  const ws = new WebSocket(`${wsOrigin}/api/ws/session/${sessionId}`, { headers: wsHeaders });
   const win = { id: sessionId, title, type: "shell", term, shellWs: ws };
   windows.push(win);
-
-  term.handler = (data) => {
-    if (ws.readyState === WebSocket.OPEN) ws.send(data);
-  };
 
   term.on("resize", () => {
     if (windows[activeWindowIndex] === win) sendResize(term, ws);
