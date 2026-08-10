@@ -29,6 +29,7 @@
     "node-notifier": "^10.0.1",
     "protobufjs": "^8.7.2",
     "proxinator": "^0.0.7",
+    "term.js": "^0.0.7",
     "ws": "^8.21.3"
   },
   "devDependencies": {
