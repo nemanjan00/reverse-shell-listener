@@ -150,6 +150,7 @@ let prefixMode = false;
 let prefixTimer = null;
 let choosing = false;
 let chooserMode = "shell"; // "shell" | "files"
+let chooserData = []; // parallel array for chooser item metadata
 const pendingShells = new Map();
 let fsRequestSeq = 1;
 let fileTransferSeq = 1;
@@ -431,6 +432,7 @@ function createFileWindow({ hostId, title }) {
     title,
     type: "files",
     fm,
+    fmData: [],
     fsWs,
     fileWs,
     hostId,
@@ -524,7 +526,8 @@ function populateChooser() {
       });
     }
   }
-  chooser.setItems(items.map((it, idx) => ({ text: it.text, data: it, index: idx })));
+  chooserData = items;
+  chooser.setItems(items.map((it) => it.text));
 }
 
 function openChooser(mode) {
@@ -543,8 +546,8 @@ function closeChooser() {
   showActiveWindow();
 }
 
-chooser.on("select", (item) => {
-  const data = item ? item.data : null;
+chooser.on("select", () => {
+  const data = chooserData[chooser.selected];
   closeChooser();
   if (!data) return;
   if (chooserMode === "files") {
@@ -608,7 +611,8 @@ function renderFileList(win) {
     const size = e.is_dir ? "" : ` ${formatBytes(e.size || 0)}`;
     items.push({ text: `${icon} ${e.name}${size}`, kind: e.is_dir ? "dir" : "file", name: e.name });
   }
-  win.fm.setItems(items.map((it, idx) => ({ text: it.text, data: it, index: idx })));
+  win.fmData = items;
+  win.fm.setItems(items.map((it) => it.text));
   win.fm.setLabel(` files — ${win.title}:${win.path} `);
   screen.render();
 }
@@ -620,14 +624,13 @@ function formatBytes(n) {
 }
 
 function navigateFile(win) {
-  const item = win.fm.getItem(win.fm.selected);
-  if (!item || !item.data) return;
-  const { kind, name } = item.data;
-  if (kind === "dir") {
-    if (name === "..") {
+  const data = win.fmData[win.fm.selected];
+  if (!data) return;
+  if (data.kind === "dir") {
+    if (data.name === "..") {
       navigateFileUp(win);
     } else {
-      win.path = win.pathModule.join(win.path, name);
+      win.path = win.pathModule.join(win.path, data.name);
       refreshFileList(win);
     }
   }
@@ -641,9 +644,9 @@ function navigateFileUp(win) {
 }
 
 function downloadSelectedFile(win) {
-  const item = win.fm.getItem(win.fm.selected);
-  if (!item || !item.data || item.data.kind !== "file") return;
-  const fileName = item.data.name;
+  const data = win.fmData[win.fm.selected];
+  if (!data || data.kind !== "file") return;
+  const fileName = data.name;
   const remotePath = win.pathModule.join(win.path, fileName);
   const transferId = fileTransferSeq++;
   const localPath = path.join(process.cwd(), fileName);
