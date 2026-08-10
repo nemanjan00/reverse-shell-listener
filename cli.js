@@ -10,7 +10,7 @@ import { URL } from "node:url";
 //   node cli.js --url https://rsl.example.com --token ...
 
 let baseUrl = process.env.RSL_URL || "";
-let apiToken = process.env.RSL_API_TOKEN || "";
+let apiToken = process.env.RSL_TOKEN || process.env.RSL_API_TOKEN || "";
 
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
