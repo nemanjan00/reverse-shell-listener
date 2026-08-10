@@ -9,6 +9,7 @@
     "watch": "node build.js --watch",
     "start": "node build.js && node server.js",
     "dev": "node build.js && node --watch server.js",
+    "cli": "node cli.js",
     "test": "AUTH_USER=test AUTH_PASS=test API_TOKEN=test-api-token node --test tests/**/*.test.js"
   },
   "repository": {
@@ -22,10 +23,12 @@
   },
   "homepage": "https://github.com/nemanjan00/reverse-shell-listener#readme",
   "dependencies": {
+    "blessed": "^0.1.81",
     "express": "^5.2.1",
     "express-ws": "^5.0.2",
     "protobufjs": "^8.7.2",
-    "proxinator": "^0.0.7"
+    "proxinator": "^0.0.7",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@nemanjan00/qrp": "^0.9.3",

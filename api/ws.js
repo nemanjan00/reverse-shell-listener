@@ -1,7 +1,7 @@
 import { registry } from "../core/registry.js";
 import { hosts } from "../core/hosts.js";
 import { log } from "../core/log.js";
-import { authorized } from "./auth.js";
+import { authorized, apiAuthorized } from "./auth.js";
 
 
 // Convert a JSON file frame from the dashboard into a protobuf Frame object.
@@ -67,7 +67,7 @@ function jsonToFsFrame(msg) {
 export function registerWs(app) {
   // --- session list stream -------------------------------------------------
   app.ws("/api/ws/sessions", (ws, req) => {
-    if (!authorized(req)) {
+    if (!authorized(req) && !apiAuthorized(req)) {
       ws.close(1008, "unauthorized");
       return;
     }
@@ -112,7 +112,7 @@ export function registerWs(app) {
 
   // --- terminal channel ----------------------------------------------------
   app.ws("/api/ws/session/:id", (ws, req) => {
-    if (!authorized(req)) {
+    if (!authorized(req) && !apiAuthorized(req)) {
       ws.close(1008, "unauthorized");
       return;
     }
@@ -185,7 +185,7 @@ export function registerWs(app) {
   // file frames. The server translates them to/from protobuf and relays them
   // over the host's mux WebSocket.
   app.ws("/api/ws/host/:id/file", (ws, req) => {
-    if (!authorized(req)) {
+    if (!authorized(req) && !apiAuthorized(req)) {
       ws.close(1008, "unauthorized");
       return;
     }
@@ -218,7 +218,7 @@ export function registerWs(app) {
   // Dashboard opens this host-scoped WebSocket to list/stat directories using
   // the Go client's native os package. JSON on the wire, protobuf to the host.
   app.ws("/api/ws/host/:id/fs", (ws, req) => {
-    if (!authorized(req)) {
+    if (!authorized(req) && !apiAuthorized(req)) {
       ws.close(1008, "unauthorized");
       return;
     }
@@ -249,7 +249,7 @@ export function registerWs(app) {
 
   // --- event log stream -----------------------------------------------------
   app.ws("/api/ws/log", (ws, req) => {
-    if (!authorized(req)) {
+    if (!authorized(req) && !apiAuthorized(req)) {
       ws.close(1008, "unauthorized");
       return;
     }
