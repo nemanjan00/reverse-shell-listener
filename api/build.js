@@ -106,6 +106,9 @@ function buildClient(target, serverURL, tags) {
 // Stream a built binary to the response, cleaning up the temp directory even if
 // the client disconnects or the response errors before/during the transfer.
 async function sendBuiltClient(req, res, target, serverURL, tags) {
+  const t = TARGETS[target];
+  const outName = t ? `rsl-client${t.suffix}` : "rsl-client";
+
   let tmp = null;
   let cleaned = false;
   function cleanup() {
@@ -122,7 +125,7 @@ async function sendBuiltClient(req, res, target, serverURL, tags) {
   req.on("close", cleanup);
 
   try {
-    const { outPath, outName, tmp: buildTmp } = await buildClient(target, serverURL, tags);
+    const { outPath, tmp: buildTmp } = await buildClient(target, serverURL, tags);
     tmp = buildTmp;
     if (res.destroyed) {
       cleanup();
