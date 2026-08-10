@@ -388,20 +388,24 @@ function createShellWindow({ sessionId, title }) {
   });
 
   ws.on("message", (data, isBinary) => {
-    if (!isBinary && typeof data === "string") {
-      try {
-        const msg = JSON.parse(data);
-        if (msg.type === "exit") {
-          term.write("\r\n[session exited]\r\n");
-          notify("rsl-cli session exited", title);
-        }
-      } catch {
-        // ignore non-JSON text
+    // Text frames are JSON control messages (meta, exit, ...). Binary frames
+    // are raw shell output. Try to parse any incoming data as JSON first;
+    // if it parses, handle control messages and never write them to the
+    // terminal.
+    const text = Buffer.isBuffer(data) ? data.toString("utf-8") : data;
+    try {
+      const msg = JSON.parse(text);
+      if (msg.type === "exit") {
+        term.write("\r\n[session exited]\r\n");
+        notify("rsl-cli session exited", title);
       }
       return;
+    } catch {
+      // not JSON: fall through to terminal output
     }
+    if (!isBinary) return; // stray text frame that isn't JSON
     // blessed.term.js expects a string, not a Buffer.
-    term.write(Buffer.isBuffer(data) ? data.toString("utf-8") : data);
+    term.write(text);
   });
 
   ws.on("close", () => {
