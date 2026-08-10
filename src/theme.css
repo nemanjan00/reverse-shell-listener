@@ -748,6 +748,27 @@ body {
 .modal-actions .btn {
   flex: 1;
 }
+.payload-options {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.payload-options .field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  color: var(--d-fg);
+}
+.payload-options .field.inline select {
+  min-width: 120px;
+}
+.payload-options .btn {
+  margin-left: auto;
+}
 .field {
   display: flex;
   flex-direction: column;

