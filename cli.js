@@ -6,6 +6,20 @@ import path from "node:path";
 import fs from "node:fs";
 import notifier from "node-notifier";
 
+const DRACULA = {
+  bg: "#282a36",
+  fg: "#f8f8f2",
+  comment: "#6272a4",
+  cyan: "#8be9fd",
+  green: "#50fa7b",
+  orange: "#ffb86c",
+  pink: "#ff79c6",
+  purple: "#bd93f9",
+  red: "#ff5555",
+  yellow: "#f1fa8c",
+  selection: "#44475a",
+};
+
 // tmux-like remote operator TUI.
 //
 // Usage:
@@ -74,6 +88,7 @@ const screen = blessed.screen({
   smartCSR: true,
   title: "rsl-cli",
   fullUnicode: true,
+  mouse: true,
 });
 
 const topBar = blessed.box({
@@ -82,7 +97,7 @@ const topBar = blessed.box({
   left: 0,
   width: "100%",
   height: 1,
-  style: { fg: "black", bg: "cyan" },
+  style: { fg: DRACULA.bg, bg: DRACULA.purple },
   content: ` rsl-cli — ${parsed.host}`,
   tags: true,
 });
@@ -95,7 +110,7 @@ const mainBox = blessed.box({
   height: "100%-2",
   label: " shell ",
   border: { type: "line" },
-  style: { border: { fg: "cyan" } },
+  style: { border: { fg: DRACULA.comment } },
 });
 
 const bottomBar = blessed.box({
@@ -104,7 +119,7 @@ const bottomBar = blessed.box({
   left: 0,
   width: "100%",
   height: 1,
-  style: { fg: "white", bg: "blue" },
+  style: { fg: DRACULA.fg, bg: DRACULA.selection },
   content: "",
   tags: true,
 });
@@ -121,10 +136,10 @@ const chooser = blessed.list({
   keys: true,
   vi: true,
   style: {
-    fg: "white",
-    bg: "black",
-    border: { fg: "magenta" },
-    selected: { fg: "black", bg: "magenta" },
+    fg: DRACULA.fg,
+    bg: DRACULA.bg,
+    border: { fg: DRACULA.purple },
+    selected: { fg: DRACULA.bg, bg: DRACULA.pink },
   },
   tags: true,
 });
@@ -349,12 +364,13 @@ function createShellWindow({ sessionId, title }) {
     cursor: "block",
     cursorBlink: true,
     screenKeys: false,
+    mouse: true,
     handler: (data) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(Buffer.isBuffer(data) ? data : Buffer.from(data, "utf-8"));
       }
     },
-    style: { fg: "white", bg: "black" },
+    style: { fg: DRACULA.fg, bg: DRACULA.bg },
     hidden: winIndex !== activeWindowIndex,
   });
   wrapTerminalInput(term);
@@ -415,10 +431,10 @@ function createFileWindow({ hostId, title }) {
     vi: true,
     hidden: winIndex !== activeWindowIndex,
     style: {
-      fg: "white",
-      bg: "black",
-      border: { fg: "cyan" },
-      selected: { fg: "black", bg: "cyan" },
+      fg: DRACULA.fg,
+      bg: DRACULA.bg,
+      border: { fg: DRACULA.purple },
+      selected: { fg: DRACULA.bg, bg: DRACULA.pink },
     },
     tags: true,
   });
