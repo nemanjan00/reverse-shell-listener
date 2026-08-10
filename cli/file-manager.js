@@ -55,6 +55,7 @@ const list = blessed.list({
   border: { type: "line" },
   keys: true,
   vi: true,
+  mouse: false,
   style: {
     fg: DRACULA.fg,
     bg: DRACULA.bg,
@@ -124,10 +125,10 @@ function formatBytes(n) {
 function render() {
   const items = [];
   if (currentPath !== "." && currentPath !== sep && !currentPath.endsWith(":")) {
-    items.push({ text: "📁 ../", kind: "dir", name: ".." });
+    items.push({ text: "[D] ../", kind: "dir", name: ".." });
   }
   for (const e of entries) {
-    const icon = e.is_dir ? "📁" : "📄";
+    const icon = e.is_dir ? "[D]" : "[F]";
     const size = e.is_dir ? "" : ` ${formatBytes(e.size || 0)}`;
     const display = safeDisplayName(e.name);
     items.push({ text: `${icon} ${display}${size}`, kind: e.is_dir ? "dir" : "file", name: e.name });
